@@ -98,7 +98,7 @@ export class AnthropicClient extends AIClient {
 
   async sendMessage(
     messages: AIMessage[],
-    model: string = 'claude-sonnet-4-20250514',
+    model: string = 'claude-3-5-sonnet-20241022',
     config: AIClientConfig = {}
   ): Promise<string> {
     const systemMessage = messages.find(m => m.role === 'system');
@@ -192,9 +192,9 @@ export const AI_PROVIDERS = {
     icon: '🧠',
     color: '#E67E22',
     models: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-      { id: 'claude-haiku-4-20250514', name: 'Claude Haiku 4' },
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
+      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
     ],
   },
   google: {

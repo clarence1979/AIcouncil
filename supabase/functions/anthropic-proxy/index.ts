@@ -30,14 +30,20 @@ Deno.serve(async (req: Request) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-20250514",
+          model: "claude-3-haiku-20240307",
           max_tokens: 10,
           messages: [{ role: "user", content: "Hi" }],
         }),
       });
 
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("Anthropic test failed:", result);
+      }
+
       return new Response(
-        JSON.stringify({ success: response.ok }),
+        JSON.stringify({ success: response.ok, error: result.error }),
         {
           headers: {
             ...corsHeaders,
