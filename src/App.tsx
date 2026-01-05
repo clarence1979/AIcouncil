@@ -132,47 +132,62 @@ export default function App() {
         });
 
         if (participant.characterPersona?.imageUrl) {
-          setTimeout(() => {
-            createTalkingHeadForMessage(
-              participant.characterPersona!.name,
+          try {
+            const result = await createTalkingHeadForMessage(
+              participant.characterPersona.name,
               content,
-              participant.characterPersona!.imageUrl!,
+              participant.characterPersona.imageUrl,
               'local',
               newMessage.id,
               (status) => {
                 console.log('Talking head status:', status);
               }
-            )
-              .then((result) => {
-                updateMessage(newMessage.id, {
-                  videoUrl: result.videoUrl,
-                  avatarUrl: result.avatarUrl,
-                  audioUrl: result.audioUrl,
-                  videoStatus: 'completed',
-                });
-              })
-              .catch((error) => {
-                console.error('Failed to generate talking head:', error);
-                updateMessage(newMessage.id, {
-                  videoStatus: 'failed',
-                });
-              });
-          }, 100);
-        }
+            );
 
-        if (conversationSettings.autoPlayVoice) {
-          try {
-            await synthesizerRef.current.speak(content, {
-              voice: participant.voiceName || 'default',
-              rate: 0.9,
+            updateMessage(newMessage.id, {
+              videoUrl: result.videoUrl,
+              avatarUrl: result.avatarUrl,
+              audioUrl: result.audioUrl,
+              videoStatus: 'completed',
             });
+
             await new Promise(resolve => setTimeout(resolve, 500));
           } catch (error) {
-            console.error('Voice synthesis error:', error);
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            console.error('Failed to generate talking head:', error);
+            updateMessage(newMessage.id, {
+              videoStatus: 'failed',
+            });
+
+            if (conversationSettings.autoPlayVoice) {
+              try {
+                await synthesizerRef.current.speak(content, {
+                  voice: participant.voiceName || 'default',
+                  rate: 0.9,
+                });
+                await new Promise(resolve => setTimeout(resolve, 500));
+              } catch (error) {
+                console.error('Voice synthesis error:', error);
+                await new Promise(resolve => setTimeout(resolve, 1500));
+              }
+            } else {
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            }
           }
         } else {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          if (conversationSettings.autoPlayVoice) {
+            try {
+              await synthesizerRef.current.speak(content, {
+                voice: participant.voiceName || 'default',
+                rate: 0.9,
+              });
+              await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (error) {
+              console.error('Voice synthesis error:', error);
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+          }
         }
 
         const newTurn = currentTurn + 1;

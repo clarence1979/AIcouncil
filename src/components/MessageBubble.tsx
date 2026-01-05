@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Volume2, VolumeX, Copy, ThumbsUp, ThumbsDown, Edit2, Play, Pause } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { VoiceSynthesizer } from '../lib/voice-synthesis';
@@ -16,8 +16,10 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
   const [copied, setCopied] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const hasAutoPlayed = useRef(false);
 
   const participant = message.participantId
     ? participants.find((p) => p.id === message.participantId)
@@ -32,6 +34,21 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
   const hasAudio = !!(message as any).audioUrl;
   const hasAvatar = !!(message as any).avatarUrl;
   const hasPersonaImage = participant?.characterPersona?.imageUrl && !hasVideo && !hasAvatar;
+
+  useEffect(() => {
+    if (hasVideo && videoRef.current && !hasAutoPlayed.current && message.videoStatus === 'completed') {
+      hasAutoPlayed.current = true;
+      setShowVideo(true);
+      videoRef.current.play().catch(err => {
+        console.error('Auto-play failed:', err);
+      });
+    }
+  }, [hasVideo, message.videoStatus]);
+
+  const handleVideoEnded = () => {
+    setVideoPlaying(false);
+    setShowVideo(false);
+  };
 
   const handlePlayVoice = async () => {
     if (isPlaying) {
@@ -58,6 +75,7 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
         videoRef.current.pause();
         setVideoPlaying(false);
       } else {
+        setShowVideo(true);
         videoRef.current.play();
         setVideoPlaying(true);
       }
@@ -138,25 +156,53 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
             <div className="flex-shrink-0">
               {hasVideo ? (
                 <div className="relative group">
-                  <video
-                    ref={videoRef}
-                    src={(message as any).videoUrl}
-                    className="w-64 h-64 object-cover rounded-xl border-2 border-blue-500/30 shadow-lg"
-                    onPlay={() => setVideoPlaying(true)}
-                    onPause={() => setVideoPlaying(false)}
-                    onEnded={() => setVideoPlaying(false)}
-                    loop={false}
-                  />
-                  <button
-                    onClick={handlePlayVideo}
-                    className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl"
-                  >
-                    {videoPlaying ? (
-                      <Pause className="w-12 h-12 text-white" />
-                    ) : (
-                      <Play className="w-12 h-12 text-white" />
-                    )}
-                  </button>
+                  {showVideo ? (
+                    <>
+                      <video
+                        ref={videoRef}
+                        src={(message as any).videoUrl}
+                        className="w-64 h-64 object-cover rounded-xl border-2 border-blue-500/30 shadow-lg"
+                        onPlay={() => setVideoPlaying(true)}
+                        onPause={() => setVideoPlaying(false)}
+                        onEnded={handleVideoEnded}
+                        loop={false}
+                      />
+                      <button
+                        onClick={handlePlayVideo}
+                        className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl"
+                      >
+                        {videoPlaying ? (
+                          <Pause className="w-12 h-12 text-white" />
+                        ) : (
+                          <Play className="w-12 h-12 text-white" />
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="relative">
+                      <img
+                        src={(message as any).avatarUrl || participant?.characterPersona?.imageUrl}
+                        alt={displayName}
+                        className="w-64 h-64 object-cover rounded-xl border-2 border-blue-500/30 shadow-lg"
+                      />
+                      {message.videoStatus === 'generating' && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl backdrop-blur-sm">
+                          <div className="text-center text-white">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
+                            <p className="text-sm font-medium">Generating video...</p>
+                          </div>
+                        </div>
+                      )}
+                      {message.videoStatus === 'completed' && (
+                        <button
+                          onClick={handlePlayVideo}
+                          className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors rounded-xl"
+                        >
+                          <Play className="w-12 h-12 text-white" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : hasAvatar || hasPersonaImage ? (
                 <div className="relative">
