@@ -11,6 +11,8 @@ import { ConversationControls } from './components/ConversationControls';
 import { VoiceSynthesizer } from './lib/voice-synthesis';
 import { ConversationOrchestrator } from './lib/conversation-orchestrator';
 import { createTalkingHeadForMessage } from './lib/talking-head-orchestrator';
+import { generateTranscriptPDF, generateSummaryPDF } from './lib/pdf-generator';
+import { generateConversationSummary } from './lib/summary-generator';
 import type { LocalAIParticipant, Message, Avatar } from './types';
 
 export default function App() {
@@ -236,9 +238,36 @@ export default function App() {
     setTypingParticipant(null);
     orchestratorRef.current?.stop();
     orchestratorRef.current = null;
-    clearMessages();
-    messagesRef.current = [];
-    setCurrentTurn(0);
+  };
+
+  const handleClearChat = () => {
+    if (confirm('Are you sure you want to clear the entire chat? This cannot be undone.')) {
+      clearMessages();
+      messagesRef.current = [];
+      setCurrentTurn(0);
+      setIsConversationActive(false);
+      setIsPaused(false);
+    }
+  };
+
+  const handleDownloadTranscript = () => {
+    const topic = messages.find(m => m.senderType === 'user')?.content || 'AI Council Discussion';
+    generateTranscriptPDF(messages, participants, topic);
+  };
+
+  const handleDownloadSummary = async () => {
+    try {
+      const loadingMessage = 'Generating summary and determining winner...';
+      alert(loadingMessage);
+
+      const { summary, winner } = await generateConversationSummary(messages, participants);
+      await generateSummaryPDF(summary, winner, messages, participants);
+
+      alert('Summary PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      alert('Failed to generate summary. Please try again.');
+    }
   };
 
   const handleConfigure = (participantId: string) => {
@@ -346,9 +375,13 @@ export default function App() {
         isPaused={isPaused}
         currentTurn={currentTurn}
         maxTurns={conversationSettings.maxTurns}
+        hasMessages={messages.length > 0}
         onPause={handlePauseConversation}
         onResume={handleResumeConversation}
         onStop={handleStopConversation}
+        onClear={handleClearChat}
+        onDownloadTranscript={handleDownloadTranscript}
+        onDownloadSummary={handleDownloadSummary}
       />
 
       <main className="flex-1 overflow-y-auto">
