@@ -263,18 +263,30 @@ export function ApiConfigModal() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {Object.entries(AI_PROVIDERS).map(([key, provider]) => {
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {Object.entries(AI_PROVIDERS).map(([key, provider], index) => {
             const providerParticipants = getProviderParticipants(key);
             const expanded = expandedProvider === key;
             const data = formData[key] || {};
             const testResult = testResults[key];
 
             return (
-              <div
-                key={key}
-                className="border border-gray-200 rounded-xl overflow-hidden transition-all"
-              >
+              <div key={key}>
+                {index > 0 && (
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t-2 border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-white px-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                        Or
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div
+                  className="border-2 border-gray-300 rounded-xl overflow-hidden transition-all shadow-sm hover:shadow-md"
+                >
                 <div className="p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -600,6 +612,7 @@ export function ApiConfigModal() {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             );
           })}
