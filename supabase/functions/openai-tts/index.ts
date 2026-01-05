@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
         model: 'tts-1',
         input: text,
         voice: voice.toLowerCase(),
-        response_format: 'mp3',
+        response_format: 'wav',
         speed: speed || 1.0,
       }),
     });
@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
     return new Response(audioBlob, {
       headers: {
         ...corsHeaders,
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': 'audio/wav',
       },
     });
   } catch (error) {

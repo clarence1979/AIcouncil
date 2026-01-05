@@ -46,12 +46,12 @@ export async function uploadAudio(
   messageId: string
 ): Promise<UploadResult> {
   const sanitizedPersonaName = personaName.replace(/[^a-zA-Z0-9]/g, '-');
-  const filename = `councils/${conversationId}/audio/${sanitizedPersonaName}-${messageId}.mp3`;
+  const filename = `councils/${conversationId}/audio/${sanitizedPersonaName}-${messageId}.wav`;
 
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
     .upload(filename, audioBlob, {
-      contentType: 'audio/mpeg',
+      contentType: 'audio/wav',
       upsert: false,
     });
 
