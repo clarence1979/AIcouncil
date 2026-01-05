@@ -42,6 +42,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     maxTurns: 0,
     autoPlayVoice: true,
     responseLength: 500,
+    enableTalkingHeads: false,
   });
 
   useEffect(() => {

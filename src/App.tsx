@@ -116,7 +116,7 @@ export default function App() {
           content,
           turnNumber: currentTurn,
           createdAt: new Date().toISOString(),
-          videoStatus: participant.characterPersona?.imageUrl ? 'generating' : undefined,
+          videoStatus: (conversationSettings.enableTalkingHeads && participant.characterPersona?.imageUrl) ? 'generating' : undefined,
         };
 
         messagesRef.current = [...messagesRef.current, newMessage];
@@ -131,7 +131,7 @@ export default function App() {
           messageCount: participant.messageCount + 1,
         });
 
-        if (participant.characterPersona?.imageUrl) {
+        if (conversationSettings.enableTalkingHeads && participant.characterPersona?.imageUrl) {
           try {
             const suggestedVoice = participant.characterPersona?.voiceCharacteristics?.suggestedVoice;
             const result = await createTalkingHeadForMessage(

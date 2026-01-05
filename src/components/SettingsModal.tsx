@@ -141,6 +141,23 @@ export function SettingsModal() {
                 </div>
               </label>
             </div>
+
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer p-4 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={conversationSettings.enableTalkingHeads}
+                  onChange={(e) => updateSettings({ enableTalkingHeads: e.target.checked })}
+                  className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <div>
+                  <div className="font-medium text-gray-900">Enable Talking Head Videos</div>
+                  <div className="text-sm text-gray-500">
+                    Generate animated videos for character personas (slower, requires Replicate API)
+                  </div>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
 

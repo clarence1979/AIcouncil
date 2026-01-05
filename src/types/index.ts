@@ -138,4 +138,5 @@ export interface ConversationSettings {
   maxTurns: number;
   autoPlayVoice: boolean;
   responseLength: number;
+  enableTalkingHeads: boolean;
 }
