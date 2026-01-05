@@ -220,6 +220,11 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
                           </div>
                         </div>
                       )}
+                      {message.videoStatus === 'failed' && (
+                        <div className="absolute bottom-3 left-3 bg-red-600/90 rounded-lg px-3 py-2 shadow-lg">
+                          <p className="text-xs text-white font-medium">Video generation failed</p>
+                        </div>
+                      )}
                       {message.videoStatus === 'completed' && (
                         <button
                           onClick={handlePlayVideo}
@@ -244,6 +249,11 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
                         <p className="text-sm font-medium">Generating video...</p>
                       </div>
+                    </div>
+                  )}
+                  {message.videoStatus === 'failed' && (
+                    <div className="absolute bottom-3 left-3 bg-red-600/90 rounded-lg px-3 py-2 shadow-lg">
+                      <p className="text-xs text-white font-medium">Video generation failed</p>
                     </div>
                   )}
                   {hasAudio && (

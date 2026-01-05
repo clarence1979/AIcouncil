@@ -156,6 +156,8 @@ export default function App() {
             await new Promise(resolve => setTimeout(resolve, 500));
           } catch (error) {
             console.error('Failed to generate talking head:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Error details:', errorMessage);
             updateMessage(newMessage.id, {
               videoStatus: 'failed',
             });
