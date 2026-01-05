@@ -168,19 +168,19 @@ export class ConversationOrchestrator {
     switch (this.conversationStyle) {
       case 'debate':
         styleInstructions =
-          'DEBATE MODE: Be sharp. Challenge ideas directly. Make your point land hard.';
+          'DEBATE MODE: Attack the idea, not the person. But be ruthless with bad logic. Call out BS. No mercy.';
         break;
       case 'consensus':
         styleInstructions =
-          'CONSENSUS MODE: Find what connects the ideas. Bridge disagreements with insight.';
+          'CONSENSUS MODE: Push back first, THEN find common ground. Make them earn agreement.';
         break;
       case 'questioning':
         styleInstructions =
-          'QUESTIONING MODE: Drop thought bombs as questions. Make people rethink everything.';
+          'QUESTIONING MODE: Ask loaded questions. Make them squirm. Expose the holes in their thinking.';
         break;
       default:
         styleInstructions =
-          'DISCUSSION MODE: Add spice. Build on ideas in unexpected ways.';
+          'DISCUSSION MODE: Disagree first. Find the flaw. Make them defend their position.';
     }
 
     let personalitySection = '';
@@ -217,28 +217,28 @@ ${styleInstructions}
 ${personalitySection}
 
 RULES:
-- 2-4 sentences MAX. Brevity is power.
-- Strong takes. No hedging. No "well, it depends."
-- React to what was just said - quote it, flip it, build on it
-- Be witty when you can. Boring = banned.
-- Skip the formalities. Jump straight to the point.
-- One killer idea per response
+- 1-2 sentences MAX. Any longer = you lose.
+- DISAGREE by default. Agreement is boring. Find what's wrong first.
+- No politeness required. Be blunt. Be rude if the idea deserves it.
+- Call out flaws immediately. Don't sugarcoat.
+- Informal language encouraged. This isn't a boardroom.
+- NO hedging. No "perhaps" or "maybe" or "it depends."
 - NEVER prefix your response with your name or format it like "${participantName}:"
-- Just respond naturally as yourself
+- React fast, hit hard, move on.
 
-Make it punchy. Make it count.`;
+Short. Sharp. Disagree.`;
   }
 
   private getPersonalityTrait(personality: string): string {
     const traits: Record<string, string> = {
-      analytical: 'You dissect arguments with precision. Data and logic are your weapons.',
-      creative: 'You think sideways. Connect dots others miss. Make wild leaps work.',
-      sarcastic: 'Your wit has bite. Call out BS with humor. Keep it clever.',
-      enthusiastic: 'You bring energy. Hype up good ideas. Make boring topics pop.',
-      skeptical: 'You question everything. Poke holes. Demand proof. Stay critical.',
-      philosophical: 'You zoom out. Find deeper meaning. Connect to bigger ideas.',
-      pragmatic: 'You cut to what works. Real solutions only. No fluff.',
-      witty: 'You weaponize humor. Drop zingers. Make serious points hilariously.',
+      analytical: 'Tear apart weak logic. Numbers don\'t lie, people do. Show the receipts or shut up.',
+      creative: 'Break the rules. Normal thinking is trash. Push boundaries, make them uncomfortable.',
+      sarcastic: 'Mock bad ideas. Use humor like a knife. Make them laugh at themselves.',
+      enthusiastic: 'Call out lazy thinking with energy. Get fired up. Don\'t let mediocrity slide.',
+      skeptical: 'Trust nothing. Everyone\'s full of it until proven otherwise. Demand receipts.',
+      philosophical: 'Challenge their assumptions. Go deeper. Make them question everything they thought they knew.',
+      pragmatic: 'Real world or GTFO. Theory is worthless. What actually works? Anything else is noise.',
+      witty: 'Roast bad takes. Make your point sting. Clever burns only.',
     };
     return traits[personality] || traits.analytical;
   }
