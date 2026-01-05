@@ -1,5 +1,5 @@
 const SADTALKER_MODEL_VERSION = '3aa3dac9353cc4d6bd62a35e0f07e9e57f52422c';
-const REPLICATE_API_URL = 'https://api.replicate.com/v1/predictions';
+const REPLICATE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/replicate-proxy`;
 
 export interface SadTalkerOptions {
   still?: boolean;
@@ -25,6 +25,24 @@ function getReplicateApiKey(): string {
   return key;
 }
 
+async function callReplicateProxy(action: 'create' | 'get', apiKey: string, data?: any, predictionId?: string) {
+  const response = await fetch(REPLICATE_PROXY_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, apiKey, data, predictionId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Replicate proxy request failed');
+  }
+
+  return response.json();
+}
+
 export function setReplicateApiKey(key: string): void {
   localStorage.setItem('replicate_api_key', key);
 }
@@ -41,32 +59,18 @@ export async function generateTalkingHead(
 ): Promise<SadTalkerResult> {
   const apiKey = getReplicateApiKey();
 
-  const startResponse = await fetch(REPLICATE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Token ${apiKey}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'wait=10',
+  let prediction = await callReplicateProxy('create', apiKey, {
+    version: SADTALKER_MODEL_VERSION,
+    input: {
+      source_image: imageUrl,
+      driven_audio: audioUrl,
+      still: options.still !== false,
+      preprocess: options.preprocess || 'crop',
+      enhancer: options.enhancer || 'gfpgan',
+      face_model_resolution: options.faceModelResolution || '256',
     },
-    body: JSON.stringify({
-      version: SADTALKER_MODEL_VERSION,
-      input: {
-        source_image: imageUrl,
-        driven_audio: audioUrl,
-        still: options.still !== false,
-        preprocess: options.preprocess || 'crop',
-        enhancer: options.enhancer || 'gfpgan',
-        face_model_resolution: options.faceModelResolution || '256',
-      },
-    }),
   });
 
-  if (!startResponse.ok) {
-    const error = await startResponse.json();
-    throw new Error(`SadTalker generation failed: ${error.detail || 'Unknown error'}`);
-  }
-
-  let prediction = await startResponse.json();
   let attempts = 0;
   const maxAttempts = 120;
 
@@ -77,17 +81,7 @@ export async function generateTalkingHead(
   ) {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const checkResponse = await fetch(`${REPLICATE_API_URL}/${prediction.id}`, {
-      headers: {
-        'Authorization': `Token ${apiKey}`,
-      },
-    });
-
-    if (!checkResponse.ok) {
-      throw new Error('Failed to check prediction status');
-    }
-
-    prediction = await checkResponse.json();
+    prediction = await callReplicateProxy('get', apiKey, undefined, prediction.id);
     attempts++;
   }
 
