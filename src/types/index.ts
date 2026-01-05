@@ -89,6 +89,10 @@ export interface Message {
   content: string;
   turnNumber: number;
   createdAt: string;
+  avatarUrl?: string;
+  audioUrl?: string;
+  videoUrl?: string;
+  videoStatus?: 'pending' | 'generating' | 'completed' | 'failed';
 }
 
 export interface ConversationParticipant {

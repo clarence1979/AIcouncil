@@ -610,7 +610,11 @@ export function ApiConfigModal() {
               <li>• OpenAI: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline">platform.openai.com/api-keys</a></li>
               <li>• Anthropic: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="underline">console.anthropic.com/settings/keys</a></li>
               <li>• Google: <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">makersuite.google.com/app/apikey</a></li>
+              <li>• Replicate (for talking heads): <a href="https://replicate.com/account/api-tokens" target="_blank" rel="noopener noreferrer" className="underline">replicate.com/account/api-tokens</a></li>
             </ul>
+            <p className="text-xs text-blue-700 mt-2">
+              Note: Replicate API key is managed in your browser's local storage automatically. The app will prompt you when needed.
+            </p>
           </div>
         </div>
       </div>
