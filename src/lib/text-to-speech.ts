@@ -24,11 +24,12 @@ async function getOpenAIKey(): Promise<string> {
 export async function generateSpeech(
   text: string,
   personaName: string,
-  options: TTSOptions = {}
+  options: TTSOptions = {},
+  characterVoice?: string
 ): Promise<Blob> {
   const apiKey = await getOpenAIKey();
   const config = getPersonaConfig(personaName);
-  const voice = options.voice || config.voiceId;
+  const voice = characterVoice || options.voice || config.voiceId;
   const speed = options.speed || 1.0;
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

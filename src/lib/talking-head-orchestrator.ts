@@ -23,7 +23,8 @@ export async function createTalkingHeadForMessage(
   selectedAvatarUrl: string,
   conversationId: string,
   messageId: string,
-  onStatusUpdate?: StatusCallback
+  onStatusUpdate?: StatusCallback,
+  characterVoice?: string
 ): Promise<TalkingHeadResult> {
   const updateStatus = (
     status: TalkingHeadStatus['status'],
@@ -45,7 +46,7 @@ export async function createTalkingHeadForMessage(
 
     updateStatus('generating_audio', `Generating ${personaName}'s voice...`, 10);
 
-    const audioBlob = await generateSpeech(messageText, personaName);
+    const audioBlob = await generateSpeech(messageText, personaName, {}, characterVoice);
 
     updateStatus('uploading_assets', `Uploading ${personaName}'s assets...`, 30);
 

@@ -133,6 +133,7 @@ export default function App() {
 
         if (participant.characterPersona?.imageUrl) {
           try {
+            const suggestedVoice = participant.characterPersona?.voiceCharacteristics?.suggestedVoice;
             const result = await createTalkingHeadForMessage(
               participant.characterPersona.name,
               content,
@@ -141,7 +142,8 @@ export default function App() {
               newMessage.id,
               (status) => {
                 console.log('Talking head status:', status);
-              }
+              },
+              suggestedVoice
             );
 
             updateMessage(newMessage.id, {

@@ -6,19 +6,19 @@ export interface PersonaConfig {
 export const PERSONA_CONFIGS: Record<string, PersonaConfig> = {
   'Socrates': {
     imagePrompt: 'Photorealistic portrait of ancient Greek philosopher Socrates, elderly man with distinctive beard, wise contemplative expression, classical Athens atmosphere, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'echo',
+    voiceId: 'onyx',
   },
   'Albert Einstein': {
     imagePrompt: 'Photorealistic portrait of Albert Einstein, wild gray hair, mustache, thoughtful intelligent expression, early 1900s style, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'onyx',
+    voiceId: 'echo',
   },
   'Confucius': {
     imagePrompt: 'Photorealistic portrait of ancient Chinese philosopher Confucius, traditional scholarly robes, serene wise expression, classical Chinese setting, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'fable',
+    voiceId: 'onyx',
   },
   'Marie Curie': {
     imagePrompt: 'Photorealistic portrait of Marie Curie, early 1900s scientist, determined intelligent expression, period-appropriate dress, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'nova',
+    voiceId: 'shimmer',
   },
   'Nikola Tesla': {
     imagePrompt: 'Photorealistic portrait of inventor Nikola Tesla, sharp features, intense intelligent eyes, late 1800s style, facing camera directly, neutral background, high quality headshot',
@@ -42,15 +42,15 @@ export const PERSONA_CONFIGS: Record<string, PersonaConfig> = {
   },
   'Carl Sagan': {
     imagePrompt: 'Photorealistic portrait of Carl Sagan, 1980s scientist and astronomer, warm intelligent expression, turtleneck sweater, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'alloy',
+    voiceId: 'echo',
   },
   'Sherlock Holmes': {
     imagePrompt: 'Photorealistic portrait of Sherlock Holmes, Victorian era detective, sharp analytical expression, deerstalker cap optional, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'onyx',
+    voiceId: 'fable',
   },
   'Yoda': {
     imagePrompt: 'Photorealistic portrait of a wise elderly sage with green skin and pointed ears, ancient wisdom in expression, mystical atmosphere, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'fable',
+    voiceId: 'onyx',
   },
   'Tony Stark': {
     imagePrompt: 'Photorealistic portrait of a confident modern tech genius, goatee beard, charismatic expression, contemporary style, facing camera directly, neutral background, high quality headshot',
@@ -62,19 +62,19 @@ export const PERSONA_CONFIGS: Record<string, PersonaConfig> = {
   },
   'Mark Twain': {
     imagePrompt: 'Photorealistic portrait of Mark Twain, distinctive mustache, witty expression, late 1800s style, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'alloy',
+    voiceId: 'echo',
   },
   'Oscar Wilde': {
     imagePrompt: 'Photorealistic portrait of Oscar Wilde, Victorian era writer, elegant and witty expression, period formal wear, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'onyx',
+    voiceId: 'fable',
   },
   'Winston Churchill': {
     imagePrompt: 'Photorealistic portrait of Winston Churchill, determined expression, formal attire, 1940s style, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'echo',
+    voiceId: 'fable',
   },
   'Marcus Aurelius': {
     imagePrompt: 'Photorealistic portrait of Marcus Aurelius, Roman emperor philosopher, dignified expression, classical Roman style, facing camera directly, neutral background, high quality headshot',
-    voiceId: 'fable',
+    voiceId: 'onyx',
   },
   'Nelson Mandela': {
     imagePrompt: 'Photorealistic portrait of Nelson Mandela, warm dignified expression, modern era, facing camera directly, neutral background, high quality headshot',
