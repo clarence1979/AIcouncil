@@ -214,7 +214,13 @@ export function ParticipantConfigModal({
   };
 
   const handleSavePersonality = (updates: { personality?: Personality; avatar?: Avatar; characterPersona?: CharacterPersona | null }) => {
-    onSave(updates);
+    const updatesToSave: any = { ...updates };
+
+    if (updates.characterPersona?.voiceCharacteristics?.suggestedVoice) {
+      updatesToSave.voiceName = updates.characterPersona.voiceCharacteristics.suggestedVoice;
+    }
+
+    onSave(updatesToSave);
     if (updates.characterPersona !== undefined) {
       setTempCharacterPersona(updates.characterPersona);
     }
@@ -513,6 +519,31 @@ export function ParticipantConfigModal({
                       </div>
                     </div>
                   </div>
+
+                  {tempCharacterPersona.voiceCharacteristics && (
+                    <div className="bg-purple-800/20 rounded-lg p-4 border border-purple-500/20">
+                      <h4 className="text-sm font-semibold text-purple-100 mb-2">Voice Profile</h4>
+                      <div className="space-y-2 text-xs text-purple-200">
+                        <div className="flex gap-4">
+                          <span className="text-purple-300">Gender:</span>
+                          <span className="capitalize">{tempCharacterPersona.voiceCharacteristics.gender}</span>
+                        </div>
+                        <div className="flex gap-4">
+                          <span className="text-purple-300">Age:</span>
+                          <span className="capitalize">{tempCharacterPersona.voiceCharacteristics.ageRange}</span>
+                        </div>
+                        <div className="flex gap-4">
+                          <span className="text-purple-300">Accent:</span>
+                          <span>{tempCharacterPersona.voiceCharacteristics.accent}</span>
+                        </div>
+                        <div className="flex gap-4">
+                          <span className="text-purple-300">Voice:</span>
+                          <span className="capitalize">{tempCharacterPersona.voiceCharacteristics.suggestedVoice}</span>
+                        </div>
+                        <p className="text-purple-300/80 italic mt-2">{tempCharacterPersona.voiceCharacteristics.reasoning}</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex gap-3 pt-4 border-t border-purple-500/20">
                     <button

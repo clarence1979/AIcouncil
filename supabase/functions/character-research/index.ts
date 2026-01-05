@@ -41,6 +41,7 @@ Deno.serve(async (req: Request) => {
     let speakingStyle = "";
     let catchphrases: string[] = [];
     let mannerisms: string[] = [];
+    let voiceCharacteristics: any = null;
 
     if (!customDescription || !customTraits) {
       const researchResponse = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -66,7 +67,14 @@ Return a JSON object with:
   "traits": ["5-7 key personality traits"],
   "speakingStyle": "detailed description of how they speak, their tone, vocabulary, sentence structure, and communication style",
   "catchphrases": ["3-5 famous quotes or characteristic phrases they might say"],
-  "mannerisms": ["3-5 behavioral quirks, gestures, or distinctive actions they're known for"]
+  "mannerisms": ["3-5 behavioral quirks, gestures, or distinctive actions they're known for"],
+  "voiceCharacteristics": {
+    "gender": "male/female/neutral - based on the character",
+    "ageRange": "young/middle/elderly - based on the character's typical age",
+    "accent": "describe their accent/dialect (e.g., British RP, American Southern, German, French, Ancient Greek, etc.) based on their origin, time period, and background",
+    "suggestedVoice": "choose from: nova (warm female), shimmer (gentle female), alloy (neutral), echo (friendly male), fable (British male), onyx (deep male) - pick the BEST match based on gender, age, and accent",
+    "reasoning": "1-2 sentence explanation of why this voice matches the character"
+  }
 }`
             }
           ],
@@ -86,6 +94,7 @@ Return a JSON object with:
       speakingStyle = characterData.speakingStyle || "";
       catchphrases = characterData.catchphrases || [];
       mannerisms = characterData.mannerisms || [];
+      voiceCharacteristics = characterData.voiceCharacteristics || null;
     }
 
     const imagePrompt = `Portrait of ${characterName}, professional headshot style, detailed face, neutral background, high quality, photorealistic`;
@@ -121,6 +130,7 @@ Return a JSON object with:
         catchphrases,
         mannerisms,
         imageUrl,
+        voiceCharacteristics,
         isCustom: !!(customDescription || customTraits),
       }),
       {

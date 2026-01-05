@@ -42,6 +42,13 @@ export interface CharacterPersona {
   mannerisms?: string[];
   imageUrl?: string;
   isCustom: boolean;
+  voiceCharacteristics?: {
+    gender: 'male' | 'female' | 'neutral';
+    ageRange: 'young' | 'middle' | 'elderly';
+    accent: string;
+    suggestedVoice: AIVoiceId;
+    reasoning: string;
+  };
 }
 
 export interface AIParticipant {
