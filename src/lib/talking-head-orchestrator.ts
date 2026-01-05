@@ -46,7 +46,7 @@ export async function createTalkingHeadForMessage(
     }
 
     // Check for OpenAI API key (used for audio generation)
-    const participants = JSON.parse(localStorage.getItem('aiParticipants') || '[]');
+    const participants = JSON.parse(localStorage.getItem('ai-participants') || '[]');
     const openaiParticipant = participants.find((p: any) => p.provider === 'openai');
     const hasOpenAIKey = openaiParticipant?.apiKey || import.meta.env.VITE_OPENAI_API_KEY;
 

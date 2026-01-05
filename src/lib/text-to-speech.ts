@@ -6,7 +6,7 @@ export interface TTSOptions {
 }
 
 async function getOpenAIKey(): Promise<string> {
-  const participants = JSON.parse(localStorage.getItem('aiParticipants') || '[]');
+  const participants = JSON.parse(localStorage.getItem('ai-participants') || '[]');
   const openaiParticipant = participants.find((p: any) => p.provider === 'openai');
 
   if (openaiParticipant?.apiKey) {
