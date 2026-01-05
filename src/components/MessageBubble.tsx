@@ -31,6 +31,7 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
   const hasVideo = !!(message as any).videoUrl;
   const hasAudio = !!(message as any).audioUrl;
   const hasAvatar = !!(message as any).avatarUrl;
+  const hasPersonaImage = participant?.characterPersona?.imageUrl && !hasVideo && !hasAvatar;
 
   const handlePlayVoice = async () => {
     if (isPlaying) {
@@ -133,7 +134,7 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
         </div>
 
         <div className="flex gap-4">
-          {(hasVideo || hasAvatar) && (
+          {(hasVideo || hasAvatar || hasPersonaImage) && (
             <div className="flex-shrink-0">
               {hasVideo ? (
                 <div className="relative group">
@@ -157,13 +158,21 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
                     )}
                   </button>
                 </div>
-              ) : hasAvatar ? (
+              ) : hasAvatar || hasPersonaImage ? (
                 <div className="relative">
                   <img
-                    src={(message as any).avatarUrl}
+                    src={(message as any).avatarUrl || participant?.characterPersona?.imageUrl}
                     alt={displayName}
                     className="w-64 h-64 object-cover rounded-xl border-2 border-blue-500/30 shadow-lg"
                   />
+                  {message.videoStatus === 'generating' && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl backdrop-blur-sm">
+                      <div className="text-center text-white">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
+                        <p className="text-sm font-medium">Generating video...</p>
+                      </div>
+                    </div>
+                  )}
                   {hasAudio && (
                     <button
                       onClick={handlePlayAudio}

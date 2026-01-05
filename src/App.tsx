@@ -10,6 +10,7 @@ import { TopicInput } from './components/TopicInput';
 import { ConversationControls } from './components/ConversationControls';
 import { VoiceSynthesizer } from './lib/voice-synthesis';
 import { ConversationOrchestrator } from './lib/conversation-orchestrator';
+import { createTalkingHeadForMessage } from './lib/talking-head-orchestrator';
 import type { LocalAIParticipant, Message, Avatar } from './types';
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
     showSettings,
     showApiConfig,
     addMessage,
+    updateMessage,
     clearMessages,
     updateParticipant,
     setIsConversationActive,
@@ -114,6 +116,7 @@ export default function App() {
           content,
           turnNumber: currentTurn,
           createdAt: new Date().toISOString(),
+          videoStatus: participant.characterPersona?.imageUrl ? 'generating' : undefined,
         };
 
         messagesRef.current = [...messagesRef.current, newMessage];
@@ -127,6 +130,35 @@ export default function App() {
         updateParticipant(participant.id, {
           messageCount: participant.messageCount + 1,
         });
+
+        if (participant.characterPersona?.imageUrl) {
+          setTimeout(() => {
+            createTalkingHeadForMessage(
+              participant.characterPersona!.name,
+              content,
+              participant.characterPersona!.imageUrl!,
+              'local',
+              newMessage.id,
+              (status) => {
+                console.log('Talking head status:', status);
+              }
+            )
+              .then((result) => {
+                updateMessage(newMessage.id, {
+                  videoUrl: result.videoUrl,
+                  avatarUrl: result.avatarUrl,
+                  audioUrl: result.audioUrl,
+                  videoStatus: 'completed',
+                });
+              })
+              .catch((error) => {
+                console.error('Failed to generate talking head:', error);
+                updateMessage(newMessage.id, {
+                  videoStatus: 'failed',
+                });
+              });
+          }, 100);
+        }
 
         if (conversationSettings.autoPlayVoice) {
           try {

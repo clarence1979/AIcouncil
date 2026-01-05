@@ -14,7 +14,8 @@ interface AppContextType {
   addParticipant: (participant: LocalAIParticipant) => void;
   updateParticipant: (id: string, updates: Partial<LocalAIParticipant>) => void;
   removeParticipant: (id: string) => void;
-  addMessage: (message: Omit<Message, 'id' | 'createdAt'>) => void;
+  addMessage: (message: Omit<Message, 'id' | 'createdAt'> | Message) => void;
+  updateMessage: (id: string, updates: Partial<Message>) => void;
   clearMessages: () => void;
   updateSettings: (settings: Partial<ConversationSettings>) => void;
   setIsConversationActive: (active: boolean) => void;
@@ -135,13 +136,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('ai-participants', JSON.stringify(updated));
   };
 
-  const addMessage = (message: Omit<Message, 'id' | 'createdAt'>) => {
-    const newMessage: Message = {
-      ...message,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, newMessage]);
+  const addMessage = (message: Omit<Message, 'id' | 'createdAt'> | Message) => {
+    if ('id' in message && 'createdAt' in message) {
+      setMessages(prev => [...prev, message as Message]);
+    } else {
+      const newMessage: Message = {
+        ...message,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, newMessage]);
+    }
+  };
+
+  const updateMessage = (id: string, updates: Partial<Message>) => {
+    setMessages(prev =>
+      prev.map(msg => (msg.id === id ? { ...msg, ...updates } : msg))
+    );
   };
 
   const clearMessages = () => {
@@ -183,6 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateParticipant,
         removeParticipant,
         addMessage,
+        updateMessage,
         clearMessages,
         updateSettings,
         setIsConversationActive,
