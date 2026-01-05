@@ -280,13 +280,13 @@ export default function App() {
 
       {activeParticipants.length > 0 && (
         <div className="bg-gray-900/70 backdrop-blur-sm border-b border-blue-500/20 shadow-lg">
-          <div className="max-w-7xl mx-auto px-6 py-2">
-            <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-xs font-semibold text-blue-300 uppercase tracking-wide">
+          <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="flex items-center gap-3 mb-3">
+              <h2 className="text-sm font-semibold text-blue-300 uppercase tracking-wide">
                 Active Participants ({activeParticipants.length})
               </h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 max-h-32 overflow-y-auto">
+            <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-2">
               {activeParticipants.map((participant) => (
                 <ParticipantCard
                   key={participant.id}
@@ -297,9 +297,9 @@ export default function App() {
               ))}
               <button
                 onClick={() => setShowApiConfig(true)}
-                className="border-2 border-dashed border-blue-500/30 rounded-lg p-3 hover:border-blue-400 hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2 text-blue-300 hover:text-blue-100 font-medium text-sm"
+                className="border-2 border-dashed border-blue-500/30 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2 text-blue-300 hover:text-blue-100 font-medium text-sm"
               >
-                <Plus size={16} />
+                <Plus size={18} />
                 Add AI
               </button>
             </div>
