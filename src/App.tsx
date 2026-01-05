@@ -286,22 +286,37 @@ export default function App() {
                 Active Participants ({activeParticipants.length})
               </h2>
             </div>
-            <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-2">
-              {activeParticipants.map((participant) => (
-                <ParticipantCard
-                  key={participant.id}
-                  participant={participant}
-                  onConfigure={() => handleConfigure(participant.id)}
-                  onRemove={() => updateParticipant(participant.id, { isActive: false })}
-                />
-              ))}
-              <button
-                onClick={() => setShowApiConfig(true)}
-                className="border-2 border-dashed border-blue-500/30 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2 text-blue-300 hover:text-blue-100 font-medium text-sm"
-              >
-                <Plus size={18} />
-                Add AI
-              </button>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-2">
+                {activeParticipants.map((participant) => (
+                  <ParticipantCard
+                    key={participant.id}
+                    participant={participant}
+                    onConfigure={() => handleConfigure(participant.id)}
+                    onRemove={() => updateParticipant(participant.id, { isActive: false })}
+                  />
+                ))}
+                <button
+                  onClick={() => setShowApiConfig(true)}
+                  className="border-2 border-dashed border-blue-500/30 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2 text-blue-300 hover:text-blue-100 font-medium text-sm"
+                >
+                  <Plus size={18} />
+                  Add AI
+                </button>
+              </div>
+              {messages.length === 0 && (
+                <div className="flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-5xl mb-4">💭</div>
+                    <h2 className="text-xl font-bold text-blue-100 mb-3 drop-shadow-lg">
+                      Ready to Start
+                    </h2>
+                    <p className="text-base text-blue-200/90 drop-shadow">
+                      Your AI council is assembled. What topic would you like them to discuss?
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -338,17 +353,7 @@ export default function App() {
                 Configure Your First AI
               </button>
             </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-5xl mb-4">💭</div>
-              <h2 className="text-xl font-bold text-blue-100 mb-3 drop-shadow-lg">
-                Ready to Start
-              </h2>
-              <p className="text-base text-blue-200/90 drop-shadow">
-                Your AI council is assembled. What topic would you like them to discuss?
-              </p>
-            </div>
-          ) : (
+          ) : messages.length > 0 ? (
             <>
               {messages.map((message) => (
                 <MessageBubble
@@ -361,7 +366,7 @@ export default function App() {
               {typingParticipant && <TypingIndicator participant={typingParticipant} />}
               <div ref={messagesEndRef} />
             </>
-          )}
+          ) : null}
         </div>
       </main>
 
