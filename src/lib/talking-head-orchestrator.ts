@@ -1,6 +1,6 @@
 import { generateSpeech } from './text-to-speech';
 import { generateTalkingHead, hasReplicateApiKey, promptForApiKey } from './sadtalker-service';
-import { uploadAvatar, uploadAudio } from './storage-service';
+import { uploadAvatar, uploadAudio, uploadVideo } from './storage-service';
 import { supabase } from './supabase';
 
 export interface TalkingHeadStatus {
@@ -71,12 +71,19 @@ export async function createTalkingHeadForMessage(
       audioUpload.publicUrl
     );
 
-    updateStatus('generating_video', 'Finalizing video...', 90);
+    updateStatus('generating_video', 'Uploading video...', 90);
+
+    const videoUpload = await uploadVideo(
+      videoResult.videoUrl,
+      personaName,
+      conversationId,
+      messageId
+    );
 
     await supabase
       .from('messages')
       .update({
-        video_url: videoResult.videoUrl,
+        video_url: videoUpload.publicUrl,
         video_status: 'completed',
       })
       .eq('id', messageId);
@@ -84,7 +91,7 @@ export async function createTalkingHeadForMessage(
     updateStatus('completed', `${personaName} is ready!`, 100);
 
     return {
-      videoUrl: videoResult.videoUrl,
+      videoUrl: videoUpload.publicUrl,
       avatarUrl: avatarUpload.publicUrl,
       audioUrl: audioUpload.publicUrl,
     };

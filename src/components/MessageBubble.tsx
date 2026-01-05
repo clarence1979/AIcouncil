@@ -178,14 +178,21 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
                         onPlay={() => setVideoPlaying(true)}
                         onPause={() => setVideoPlaying(false)}
                         onEnded={handleVideoEnded}
+                        onError={(e) => {
+                          console.error('Video playback error:', e);
+                        }}
                         onLoadedMetadata={(e) => {
+                          console.log('Video loaded, duration:', e.currentTarget.duration);
                           if (showVideo && !videoPlaying) {
                             e.currentTarget.play().catch(console.error);
                           }
                         }}
                         playsInline
                         autoPlay
+                        muted
+                        loop
                         controls
+                        crossOrigin="anonymous"
                       />
                       <button
                         onClick={handlePlayVideo}
