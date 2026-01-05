@@ -37,6 +37,7 @@ export async function createTalkingHeadForMessage(
   };
 
   try {
+    // Check for Replicate API key (used for video generation)
     if (!hasReplicateApiKey()) {
       const key = promptForApiKey();
       if (!key) {
@@ -44,8 +45,18 @@ export async function createTalkingHeadForMessage(
       }
     }
 
+    // Check for OpenAI API key (used for audio generation)
+    const participants = JSON.parse(localStorage.getItem('aiParticipants') || '[]');
+    const openaiParticipant = participants.find((p: any) => p.provider === 'openai');
+    const hasOpenAIKey = openaiParticipant?.apiKey || import.meta.env.VITE_OPENAI_API_KEY;
+
+    if (!hasOpenAIKey) {
+      throw new Error('OpenAI API key required for voice generation. Please configure an OpenAI participant first to enable talking head audio.');
+    }
+
     updateStatus('generating_audio', `Generating ${personaName}'s voice...`, 10);
 
+    // Generate audio using OpenAI TTS
     const audioBlob = await generateSpeech(messageText, personaName, {}, characterVoice);
 
     updateStatus('uploading_assets', `Uploading ${personaName}'s assets...`, 30);

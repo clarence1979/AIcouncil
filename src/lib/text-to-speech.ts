@@ -18,7 +18,7 @@ async function getOpenAIKey(): Promise<string> {
     return envKey;
   }
 
-  throw new Error('OpenAI API key not found. Please configure an OpenAI participant first.');
+  throw new Error('OpenAI API key required for voice generation. Please configure an OpenAI participant to enable talking head audio.');
 }
 
 export async function generateSpeech(
