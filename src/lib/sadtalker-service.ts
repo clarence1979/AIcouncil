@@ -1,4 +1,4 @@
-const SADTALKER_MODEL_VERSION = '3aa3dac9353cc4d6bd62a35e0f07e9e57f52422c';
+const SADTALKER_MODEL_VERSION = '3aa3dac9353cc4d6bd62a8f95957bd844003b401ca4e4a9b33baa574c549d376';
 const REPLICATE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/replicate-proxy`;
 
 export interface SadTalkerOptions {
