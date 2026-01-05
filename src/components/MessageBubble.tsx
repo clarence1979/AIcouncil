@@ -36,14 +36,27 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
   const hasPersonaImage = participant?.characterPersona?.imageUrl && !hasVideo && !hasAvatar;
 
   useEffect(() => {
-    if (hasVideo && videoRef.current && !hasAutoPlayed.current && message.videoStatus === 'completed') {
+    if (hasVideo && !hasAutoPlayed.current && message.videoStatus === 'completed') {
       hasAutoPlayed.current = true;
       setShowVideo(true);
-      videoRef.current.play().catch(err => {
-        console.error('Auto-play failed:', err);
-      });
     }
   }, [hasVideo, message.videoStatus]);
+
+  useEffect(() => {
+    if (showVideo && videoRef.current && hasVideo && !videoPlaying && message.videoStatus === 'completed') {
+      const playVideo = async () => {
+        try {
+          await videoRef.current?.play();
+          setVideoPlaying(true);
+        } catch (err) {
+          console.error('Auto-play failed:', err);
+        }
+      };
+
+      const timer = setTimeout(playVideo, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showVideo, hasVideo, message.videoStatus]);
 
   const handleVideoEnded = () => {
     setVideoPlaying(false);
@@ -165,7 +178,14 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
                         onPlay={() => setVideoPlaying(true)}
                         onPause={() => setVideoPlaying(false)}
                         onEnded={handleVideoEnded}
-                        loop={false}
+                        onLoadedMetadata={(e) => {
+                          if (showVideo && !videoPlaying) {
+                            e.currentTarget.play().catch(console.error);
+                          }
+                        }}
+                        playsInline
+                        autoPlay
+                        controls
                       />
                       <button
                         onClick={handlePlayVideo}
