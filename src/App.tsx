@@ -296,11 +296,25 @@ export default function App() {
       <header className="bg-gray-900/80 backdrop-blur-md border-b border-blue-500/30 shadow-lg shadow-blue-500/10">
         <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="text-2xl">🎭</div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-300 via-cyan-300 to-blue-400 bg-clip-text text-transparent drop-shadow-lg">
-                AI Council
-              </h1>
+            <div className="flex items-center gap-6">
+              <a
+                href="https://digitalvector.com.au"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-80 transition-opacity"
+              >
+                <img
+                  src="/digivec_logo.png"
+                  alt="Digital Vector"
+                  className="h-16"
+                />
+              </a>
+              <div className="flex items-center gap-2">
+                <div className="text-2xl">🎭</div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-300 via-cyan-300 to-blue-400 bg-clip-text text-transparent drop-shadow-lg">
+                  AI Council
+                </h1>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
