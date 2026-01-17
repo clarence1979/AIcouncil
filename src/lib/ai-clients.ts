@@ -72,26 +72,33 @@ export class OpenAIClient extends AIClient {
 }
 
 export class AnthropicClient extends AIClient {
+  private proxyUrl: string;
+
   constructor(apiKey: string) {
     super(apiKey);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    this.proxyUrl = `${supabaseUrl}/functions/v1/anthropic-proxy`;
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch(this.proxyUrl, {
         method: 'POST',
         headers: {
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 10,
-          messages: [{ role: 'user', content: 'Hi' }],
+          action: 'test',
+          apiKey: this.apiKey,
         }),
       });
-      return response.ok;
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const result = await response.json();
+      return result.success;
     } catch {
       return false;
     }
@@ -105,19 +112,21 @@ export class AnthropicClient extends AIClient {
     const systemMessage = messages.find(m => m.role === 'system');
     const conversationMessages = messages.filter(m => m.role !== 'system');
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(this.proxyUrl, {
       method: 'POST',
       headers: {
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
-        max_tokens: config.maxTokens ?? 500,
-        temperature: config.temperature ?? 0.7,
-        system: systemMessage?.content,
-        messages: conversationMessages,
+        action: 'chat',
+        apiKey: this.apiKey,
+        data: {
+          model,
+          max_tokens: config.maxTokens ?? 500,
+          temperature: config.temperature ?? 0.7,
+          system: systemMessage?.content,
+          messages: conversationMessages,
+        },
       }),
     });
 
