@@ -1,5 +1,4 @@
 const SADTALKER_MODEL_VERSION = '3aa3dac9353cc4d6bd62a8f95957bd844003b401ca4e4a9b33baa574c549d376';
-const REPLICATE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/replicate-proxy`;
 
 export interface SadTalkerOptions {
   still?: boolean;
@@ -25,19 +24,34 @@ function getReplicateApiKey(): string {
   return key;
 }
 
-async function callReplicateProxy(action: 'create' | 'get', apiKey: string, data?: any, predictionId?: string) {
-  const response = await fetch(REPLICATE_PROXY_URL, {
+async function createPrediction(apiKey: string, data: any) {
+  const response = await fetch('https://api.replicate.com/v1/predictions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Authorization': `Token ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ action, apiKey, data, predictionId }),
+    body: JSON.stringify(data),
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Replicate proxy request failed');
+    const error = await response.text();
+    throw new Error(`Replicate API error: ${error}`);
+  }
+
+  return response.json();
+}
+
+async function getPrediction(apiKey: string, predictionId: string) {
+  const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+    headers: {
+      'Authorization': `Token ${apiKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Replicate API error: ${error}`);
   }
 
   return response.json();
@@ -59,7 +73,7 @@ export async function generateTalkingHead(
 ): Promise<SadTalkerResult> {
   const apiKey = getReplicateApiKey();
 
-  let prediction = await callReplicateProxy('create', apiKey, {
+  let prediction = await createPrediction(apiKey, {
     version: SADTALKER_MODEL_VERSION,
     input: {
       source_image: imageUrl,
@@ -81,7 +95,7 @@ export async function generateTalkingHead(
   ) {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    prediction = await callReplicateProxy('get', apiKey, undefined, prediction.id);
+    prediction = await getPrediction(apiKey, prediction.id);
     attempts++;
   }
 

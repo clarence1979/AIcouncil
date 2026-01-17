@@ -9,39 +9,11 @@ export interface AIClientConfig {
   topP?: number;
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
 export abstract class AIClient {
   protected apiKey: string;
-  protected edgeFunctionUrl: string;
 
-  constructor(apiKey: string, functionName: string) {
+  constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.edgeFunctionUrl = `${SUPABASE_URL}/functions/v1/${functionName}`;
-  }
-
-  protected async callEdgeFunction(action: string, data?: any) {
-    const response = await fetch(this.edgeFunctionUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action,
-        apiKey: this.apiKey,
-        data,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok || result.error) {
-      throw new Error(result.error || 'API request failed');
-    }
-
-    return result;
   }
 
   abstract testConnection(): Promise<boolean>;
@@ -54,13 +26,17 @@ export abstract class AIClient {
 
 export class OpenAIClient extends AIClient {
   constructor(apiKey: string) {
-    super(apiKey, 'openai-proxy');
+    super(apiKey);
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const result = await this.callEdgeFunction('test');
-      return result.success;
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+      });
+      return response.ok;
     } catch {
       return false;
     }
@@ -71,26 +47,51 @@ export class OpenAIClient extends AIClient {
     model: string = 'gpt-4-turbo',
     config: AIClientConfig = {}
   ): Promise<string> {
-    const result = await this.callEdgeFunction('chat', {
-      model,
-      messages,
-      temperature: config.temperature ?? 0.7,
-      max_tokens: config.maxTokens ?? 500,
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: config.temperature ?? 0.7,
+        max_tokens: config.maxTokens ?? 500,
+      }),
     });
 
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${error}`);
+    }
+
+    const result = await response.json();
     return result.choices[0].message.content;
   }
 }
 
 export class AnthropicClient extends AIClient {
   constructor(apiKey: string) {
-    super(apiKey, 'anthropic-proxy');
+    super(apiKey);
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const result = await this.callEdgeFunction('test');
-      return result.success;
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 10,
+          messages: [{ role: 'user', content: 'Hi' }],
+        }),
+      });
+      return response.ok;
     } catch {
       return false;
     }
@@ -104,27 +105,43 @@ export class AnthropicClient extends AIClient {
     const systemMessage = messages.find(m => m.role === 'system');
     const conversationMessages = messages.filter(m => m.role !== 'system');
 
-    const result = await this.callEdgeFunction('chat', {
-      model,
-      max_tokens: config.maxTokens ?? 500,
-      temperature: config.temperature ?? 0.7,
-      system: systemMessage?.content,
-      messages: conversationMessages,
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: config.maxTokens ?? 500,
+        temperature: config.temperature ?? 0.7,
+        system: systemMessage?.content,
+        messages: conversationMessages,
+      }),
     });
 
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Anthropic API error: ${error}`);
+    }
+
+    const result = await response.json();
     return result.content[0].text;
   }
 }
 
 export class GeminiClient extends AIClient {
   constructor(apiKey: string) {
-    super(apiKey, 'gemini-proxy');
+    super(apiKey);
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const result = await this.callEdgeFunction('test');
-      return result.success;
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`
+      );
+      return response.ok;
     } catch {
       return false;
     }
@@ -144,18 +161,37 @@ export class GeminiClient extends AIClient {
 
     const systemInstruction = messages.find(m => m.role === 'system')?.content;
 
-    const result = await this.callEdgeFunction('chat', {
-      model,
+    const requestBody: any = {
       contents,
-      systemInstruction: systemInstruction ? {
-        parts: [{ text: systemInstruction }]
-      } : undefined,
       generationConfig: {
         temperature: config.temperature ?? 0.7,
         maxOutputTokens: config.maxTokens ?? 500,
       },
-    });
+    };
 
+    if (systemInstruction) {
+      requestBody.systemInstruction = {
+        parts: [{ text: systemInstruction }],
+      };
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Gemini API error: ${error}`);
+    }
+
+    const result = await response.json();
     return result.candidates[0].content.parts[0].text;
   }
 }
