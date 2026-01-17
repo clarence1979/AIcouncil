@@ -40,18 +40,27 @@ export function ApiConfigModal() {
     setResearchingCharacter({ ...researchingCharacter, [provider]: true });
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const messages = [
+        {
+          role: 'system',
+          content: 'You are a character research assistant. Generate detailed character information in JSON format.',
+        },
+        {
+          role: 'user',
+          content: `Research the character "${name.trim()}" and provide detailed information about their personality, traits, speaking style, catchphrases, and mannerisms.`,
+        },
+      ];
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/character-research`, {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          characterName: name.trim(),
-          apiKey,
+          model: 'gpt-4',
+          messages,
+          response_format: { type: 'json_object' },
         }),
       });
 
@@ -59,7 +68,8 @@ export function ApiConfigModal() {
         throw new Error('Character research failed');
       }
 
-      const characterPersona: CharacterPersona = await response.json();
+      const data = await response.json();
+      const characterPersona: CharacterPersona = JSON.parse(data.choices[0].message.content);
 
       setFormData({
         ...formData,
@@ -81,26 +91,23 @@ export function ApiConfigModal() {
     setTestingVoice(voiceId);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
       const openaiParticipant = participants.find(p => p.provider === 'openai');
       const currentFormData = formData[provider];
       const apiKey = provider === 'openai' && currentFormData?.apiKey
         ? currentFormData.apiKey
         : openaiParticipant?.apiKey;
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/openai-tts`, {
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: `Hello! I am ${providerInfo.name}. This is how I sound when speaking in conversations.`,
+          model: 'tts-1',
+          input: `Hello! I am ${providerInfo.name}. This is how I sound when speaking in conversations.`,
           voice: voiceId,
           speed: 1.0,
-          apiKey,
         }),
       });
 

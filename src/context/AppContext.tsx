@@ -1,9 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
 import type { LocalAIParticipant, Message, ConversationSettings } from '../types';
 
 interface AppContextType {
-  user: any;
   participants: LocalAIParticipant[];
   messages: Message[];
   currentConversationId: string | null;
@@ -21,15 +19,11 @@ interface AppContextType {
   setIsConversationActive: (active: boolean) => void;
   setShowSettings: (show: boolean) => void;
   setShowApiConfig: (show: boolean) => void;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any>(null);
   const [participants, setParticipants] = useState<LocalAIParticipant[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -44,20 +38,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     responseLength: 500,
     enableTalkingHeads: false,
   });
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     const modelMigrationMap: Record<string, string> = {
@@ -166,24 +146,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('conversation-settings', JSON.stringify(updated));
   };
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-  };
-
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
-  };
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   return (
     <AppContext.Provider
       value={{
-        user,
         participants,
         messages,
         currentConversationId,
@@ -201,9 +166,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setIsConversationActive,
         setShowSettings,
         setShowApiConfig,
-        signIn,
-        signUp,
-        signOut,
       }}
     >
       {children}

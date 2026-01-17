@@ -1,7 +1,6 @@
 import { generateSpeech } from './text-to-speech';
 import { generateTalkingHead, hasReplicateApiKey, promptForApiKey } from './sadtalker-service';
 import { uploadAvatar, uploadAudio, uploadVideo } from './storage-service';
-import { supabase } from './supabase';
 
 export interface TalkingHeadStatus {
   status: 'pending' | 'generating_audio' | 'uploading_assets' | 'generating_video' | 'completed' | 'failed';
@@ -66,15 +65,6 @@ export async function createTalkingHeadForMessage(
       uploadAudio(audioBlob, personaName, conversationId, messageId),
     ]);
 
-    await supabase
-      .from('messages')
-      .update({
-        avatar_url: avatarUpload.publicUrl,
-        audio_url: audioUpload.publicUrl,
-        video_status: 'generating',
-      })
-      .eq('id', messageId);
-
     updateStatus('generating_video', `Animating ${personaName} (15-20 seconds)...`, 50);
 
     const videoResult = await generateTalkingHead(
@@ -91,14 +81,6 @@ export async function createTalkingHeadForMessage(
       messageId
     );
 
-    await supabase
-      .from('messages')
-      .update({
-        video_url: videoUpload.publicUrl,
-        video_status: 'completed',
-      })
-      .eq('id', messageId);
-
     updateStatus('completed', `${personaName} is ready!`, 100);
 
     return {
@@ -108,13 +90,6 @@ export async function createTalkingHeadForMessage(
     };
   } catch (error) {
     console.error('Error creating talking head:', error);
-
-    await supabase
-      .from('messages')
-      .update({
-        video_status: 'failed',
-      })
-      .eq('id', messageId);
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     updateStatus('failed', `Error: ${errorMessage}`, 0);
@@ -129,47 +104,18 @@ export async function savePersonaAvatar(
   allGeneratedUrls: string[],
   conversationId?: string
 ): Promise<void> {
-  const { data: session } = await supabase.auth.getSession();
-
-  if (!session?.session?.user) {
-    console.warn('No authenticated user, skipping avatar save to database');
-    return;
-  }
-
-  const { error } = await supabase.from('persona_avatars').upsert({
-    user_id: session.session.user.id,
-    conversation_id: conversationId || null,
-    persona_name: personaName,
-    selected_avatar_url: selectedAvatarUrl,
-    avatar_options: allGeneratedUrls,
-  });
-
-  if (error) {
-    console.error('Failed to save persona avatar:', error);
-  }
+  const avatarCache = JSON.parse(localStorage.getItem('persona-avatars') || '{}');
+  avatarCache[personaName] = {
+    selectedAvatarUrl,
+    allGeneratedUrls,
+    conversationId,
+  };
+  localStorage.setItem('persona-avatars', JSON.stringify(avatarCache));
 }
 
 export async function getCachedPersonaAvatar(
   personaName: string
 ): Promise<string | null> {
-  const { data: session } = await supabase.auth.getSession();
-
-  if (!session?.session?.user) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from('persona_avatars')
-    .select('selected_avatar_url')
-    .eq('user_id', session.session.user.id)
-    .eq('persona_name', personaName)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data.selected_avatar_url;
+  const avatarCache = JSON.parse(localStorage.getItem('persona-avatars') || '{}');
+  return avatarCache[personaName]?.selectedAvatarUrl || null;
 }

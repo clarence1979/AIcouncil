@@ -37,13 +37,6 @@ export class VoiceSynthesizer {
   }
 
   private async generateSpeech(text: string, voice: string, speed: number): Promise<string> {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase configuration missing');
-    }
-
     const openaiApiKey = this.getOpenAIApiKey();
     if (!openaiApiKey) {
       throw new Error('Please configure OpenAI in your AI Council settings first');
@@ -51,17 +44,17 @@ export class VoiceSynthesizer {
 
     const processedText = this.preprocessText(text);
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/openai-tts`, {
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text: processedText,
+        model: 'tts-1',
+        input: processedText,
         voice: voice.toLowerCase(),
         speed: Math.max(0.25, Math.min(4.0, speed)),
-        apiKey: openaiApiKey,
       }),
     });
 

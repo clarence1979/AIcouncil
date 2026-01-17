@@ -109,35 +109,38 @@ export function ParticipantConfigModal({
     setResearchingCharacter(true);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const messages = [
+        {
+          role: 'system',
+          content: 'You are a character research assistant. Generate detailed character information in JSON format.',
+        },
+        {
+          role: 'user',
+          content: useCustom && customDescription
+            ? `Research the character "${name.trim()}" with this description: ${customDescription}. ${useCustom && customTraits ? `Include these traits: ${customTraits}` : ''}`
+            : `Research the character "${name.trim()}" and provide detailed information about their personality, traits, speaking style, catchphrases, and mannerisms.`,
+        },
+      ];
 
-      const requestBody: any = {
-        characterName: name.trim(),
-        apiKey,
-      };
-
-      if (useCustom && customDescription) {
-        requestBody.customDescription = customDescription;
-      }
-      if (useCustom && customTraits) {
-        requestBody.customTraits = customTraits.split(',').map(t => t.trim()).filter(Boolean);
-      }
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/character-research`, {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages,
+          response_format: { type: 'json_object' },
+        }),
       });
 
       if (!response.ok) {
         throw new Error('Character research failed');
       }
 
-      const characterPersona: CharacterPersona = await response.json();
+      const data = await response.json();
+      const characterPersona: CharacterPersona = JSON.parse(data.choices[0].message.content);
       setTempCharacterPersona(characterPersona);
     } catch (error) {
       console.error('Character research error:', error);
@@ -151,9 +154,6 @@ export function ParticipantConfigModal({
     setTestingVoice(voiceId);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
       const openaiParticipant = allParticipants.find(p => p.provider === 'openai' && p.apiKey);
       const apiKey = openaiParticipant?.apiKey;
 
@@ -163,17 +163,17 @@ export function ParticipantConfigModal({
         return;
       }
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/openai-tts`, {
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: `Hello! I am ${participant.customName || participant.defaultName}. This is how I sound when speaking in conversations.`,
+          model: 'tts-1',
+          input: `Hello! I am ${participant.customName || participant.defaultName}. This is how I sound when speaking in conversations.`,
           voice: voiceId,
           speed: 1.0,
-          apiKey,
         }),
       });
 

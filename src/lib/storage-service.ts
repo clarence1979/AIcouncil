@@ -1,10 +1,15 @@
-import { supabase } from './supabase';
-
-const BUCKET_NAME = 'ai-council-assets';
-
 export interface UploadResult {
   publicUrl: string;
   path: string;
+}
+
+async function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 export async function uploadAvatar(
@@ -15,26 +20,12 @@ export async function uploadAvatar(
   const imageResponse = await fetch(imageUrl);
   const imageBlob = await imageResponse.blob();
 
+  const dataUrl = await blobToDataURL(imageBlob);
   const sanitizedPersonaName = personaName.replace(/[^a-zA-Z0-9]/g, '-');
   const filename = `councils/${conversationId}/avatars/${sanitizedPersonaName}-avatar.png`;
 
-  const { data, error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(filename, imageBlob, {
-      contentType: 'image/png',
-      upsert: true,
-    });
-
-  if (error) {
-    throw new Error(`Avatar upload failed: ${error.message}`);
-  }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(filename);
-
   return {
-    publicUrl,
+    publicUrl: dataUrl,
     path: filename,
   };
 }
@@ -45,26 +36,12 @@ export async function uploadAudio(
   conversationId: string,
   messageId: string
 ): Promise<UploadResult> {
+  const dataUrl = await blobToDataURL(audioBlob);
   const sanitizedPersonaName = personaName.replace(/[^a-zA-Z0-9]/g, '-');
   const filename = `councils/${conversationId}/audio/${sanitizedPersonaName}-${messageId}.wav`;
 
-  const { data, error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(filename, audioBlob, {
-      contentType: 'audio/wav',
-      upsert: false,
-    });
-
-  if (error) {
-    throw new Error(`Audio upload failed: ${error.message}`);
-  }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(filename);
-
   return {
-    publicUrl,
+    publicUrl: dataUrl,
     path: filename,
   };
 }
@@ -78,36 +55,16 @@ export async function uploadVideo(
   const videoResponse = await fetch(videoUrl);
   const videoBlob = await videoResponse.blob();
 
+  const dataUrl = await blobToDataURL(videoBlob);
   const sanitizedPersonaName = personaName.replace(/[^a-zA-Z0-9]/g, '-');
   const filename = `councils/${conversationId}/videos/${sanitizedPersonaName}-${messageId}.mp4`;
 
-  const { data, error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(filename, videoBlob, {
-      contentType: 'video/mp4',
-      upsert: false,
-    });
-
-  if (error) {
-    throw new Error(`Video upload failed: ${error.message}`);
-  }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(filename);
-
   return {
-    publicUrl,
+    publicUrl: dataUrl,
     path: filename,
   };
 }
 
 export async function ensureBucketExists(): Promise<boolean> {
-  try {
-    const { data: buckets } = await supabase.storage.listBuckets();
-    return buckets?.some(b => b.name === BUCKET_NAME) || false;
-  } catch (error) {
-    console.error('Error checking bucket existence:', error);
-    return false;
-  }
+  return true;
 }
