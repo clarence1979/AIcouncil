@@ -121,6 +121,7 @@ export interface LocalAIParticipant {
   voiceName?: string;
   personality: Personality;
   avatar: Avatar;
+  avatarUrl?: string;
   characterPersona?: CharacterPersona;
   config: {
     temperature?: number;

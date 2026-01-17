@@ -184,6 +184,10 @@ export function ParticipantConfigModal({
           const generatedUrl = imageData.data[0].url;
           console.log('Avatar generated successfully:', generatedUrl);
           setTempAvatarUrl(generatedUrl);
+          setTempCharacterPersona({
+            ...characterPersona,
+            imageUrl: generatedUrl
+          });
         } else {
           const errorData = await imageResponse.json();
           console.error('Avatar generation failed:', errorData);
@@ -270,6 +274,11 @@ export function ParticipantConfigModal({
     if (updates.characterPersona?.voiceCharacteristics?.suggestedVoice) {
       updatesToSave.voiceName = updates.characterPersona.voiceCharacteristics.suggestedVoice;
     }
+
+    console.log('=== SAVING PERSONALITY ===');
+    console.log('avatarUrl:', updatesToSave.avatarUrl);
+    console.log('characterPersona.imageUrl:', updatesToSave.characterPersona?.imageUrl);
+    console.log('Full updates:', updatesToSave);
 
     onSave(updatesToSave);
     if (updates.characterPersona !== undefined) {

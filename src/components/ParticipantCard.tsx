@@ -12,6 +12,12 @@ export function ParticipantCard({
   onConfigure,
   onRemove,
 }: ParticipantCardProps) {
+  console.log('=== PARTICIPANT CARD RENDERING ===');
+  console.log('Participant:', participant.customName || participant.defaultName);
+  console.log('avatarUrl:', participant.avatarUrl);
+  console.log('characterPersona:', participant.characterPersona);
+  console.log('characterPersona.imageUrl:', participant.characterPersona?.imageUrl);
+
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-blue-500/20 p-3 shadow-lg shadow-blue-500/5 hover:shadow-blue-500/10 hover:border-blue-400/30 transition-all">
       <div className="flex items-start gap-3">
