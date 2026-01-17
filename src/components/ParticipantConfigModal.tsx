@@ -109,16 +109,26 @@ export function ParticipantConfigModal({
     setResearchingCharacter(true);
 
     try {
+      const promptText = useCustom && customDescription
+        ? `Research the character "${name.trim()}" with this description: ${customDescription}. ${useCustom && customTraits ? `Include these traits: ${customTraits}` : ''}`
+        : `Research the character "${name.trim()}" and provide detailed information about their personality, traits, speaking style, catchphrases, and mannerisms.`;
+
       const messages = [
         {
           role: 'system',
-          content: 'You are a character research assistant. Generate detailed character information in JSON format.',
+          content: `You are a character research assistant. Return a JSON object with this exact structure:
+{
+  "name": "character name",
+  "description": "brief description",
+  "traits": ["trait1", "trait2", "trait3"],
+  "speakingStyle": "description of how they speak",
+  "catchphrases": ["phrase1", "phrase2"],
+  "mannerisms": ["mannerism1", "mannerism2"]
+}`,
         },
         {
           role: 'user',
-          content: useCustom && customDescription
-            ? `Research the character "${name.trim()}" with this description: ${customDescription}. ${useCustom && customTraits ? `Include these traits: ${customTraits}` : ''}`
-            : `Research the character "${name.trim()}" and provide detailed information about their personality, traits, speaking style, catchphrases, and mannerisms.`,
+          content: promptText,
         },
       ];
 
@@ -129,7 +139,7 @@ export function ParticipantConfigModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: 'gpt-4o',
           messages,
           response_format: { type: 'json_object' },
         }),
