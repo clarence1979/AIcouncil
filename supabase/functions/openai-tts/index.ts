@@ -3,7 +3,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, x-supabase-auth",
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
 Deno.serve(async (req: Request) => {
@@ -30,10 +30,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const openaiApiKey = apiKey || Deno.env.get('OPENAI_API_KEY');
-    if (!openaiApiKey) {
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key not configured. Please add OpenAI to your AI Council first.' }),
+        JSON.stringify({ error: 'OpenAI API key is required. Please configure an OpenAI participant in the AI Council settings.' }),
         {
           status: 400,
           headers: {
@@ -61,7 +60,7 @@ Deno.serve(async (req: Request) => {
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
