@@ -97,29 +97,91 @@ Return a JSON object with:
       voiceCharacteristics = characterData.voiceCharacteristics || null;
     }
 
-    const imagePrompt = `Portrait of ${characterName}, professional headshot style, detailed face, neutral background, high quality, photorealistic`;
-    
-    const imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "dall-e-3",
-        prompt: imagePrompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "standard",
-      }),
-    });
+    let imageSource = "generated";
 
-    if (!imageResponse.ok) {
-      throw new Error(`DALL-E failed: ${imageResponse.statusText}`);
+    try {
+      const imageSearchResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: "You are an image search assistant. Find publicly accessible, high-quality images of historical figures, celebrities, and famous characters from Wikimedia Commons, Wikipedia, or other free image sources. Return ONLY valid JSON."
+            },
+            {
+              role: "user",
+              content: `Find a high-quality, publicly accessible portrait image of "${characterName}".
+
+Look for images from:
+- Wikimedia Commons (https://commons.wikimedia.org/)
+- Wikipedia articles
+- Public domain sources
+
+Return JSON:
+{
+  "found": true/false,
+  "imageUrl": "direct URL to the image file (must be .jpg, .png, or .webp)",
+  "source": "Wikimedia Commons" or similar,
+  "license": "Public Domain" or license type
+}
+
+If no suitable public image is found, return {"found": false}`
+            }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.3,
+        }),
+      });
+
+      if (imageSearchResponse.ok) {
+        const searchData = await imageSearchResponse.json();
+        const searchResult = JSON.parse(searchData.choices[0].message.content);
+
+        if (searchResult.found && searchResult.imageUrl) {
+          const testResponse = await fetch(searchResult.imageUrl, { method: "HEAD" });
+          if (testResponse.ok) {
+            imageUrl = searchResult.imageUrl;
+            imageSource = "real";
+            console.log(`Found real image for ${characterName}: ${searchResult.source}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`Could not find real image for ${characterName}, will generate one:`, error);
     }
 
-    const imageData = await imageResponse.json();
-    imageUrl = imageData.data[0].url;
+    if (!imageUrl) {
+      console.log(`Generating AI image for ${characterName}`);
+      const imagePrompt = `Portrait of ${characterName}, professional headshot style, detailed face, neutral background, high quality, photorealistic`;
+
+      const imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "dall-e-3",
+          prompt: imagePrompt,
+          n: 1,
+          size: "1024x1024",
+          quality: "standard",
+        }),
+      });
+
+      if (!imageResponse.ok) {
+        throw new Error(`DALL-E failed: ${imageResponse.statusText}`);
+      }
+
+      const imageData = await imageResponse.json();
+      imageUrl = imageData.data[0].url;
+      imageSource = "generated";
+    }
 
     return new Response(
       JSON.stringify({
@@ -130,6 +192,7 @@ Return a JSON object with:
         catchphrases,
         mannerisms,
         imageUrl,
+        imageSource,
         voiceCharacteristics,
         isCustom: !!(customDescription || customTraits),
       }),
