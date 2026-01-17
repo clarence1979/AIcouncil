@@ -12,15 +12,46 @@ async function blobToDataURL(blob: Blob): Promise<string> {
   });
 }
 
+async function downloadResourceViaProxy(url: string): Promise<string> {
+  if (url.startsWith('data:')) {
+    return url;
+  }
+
+  const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openai-proxy`;
+  const participants = JSON.parse(localStorage.getItem('ai-participants') || '[]');
+  const openaiParticipant = participants.find((p: any) => p.provider === 'openai');
+  const apiKey = openaiParticipant?.apiKey || import.meta.env.VITE_OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OpenAI API key required for resource downloads');
+  }
+
+  const response = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      action: 'download',
+      apiKey,
+      data: { url },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download resource via proxy: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  return result.data;
+}
+
 export async function uploadAvatar(
   imageUrl: string,
   personaName: string,
   conversationId: string
 ): Promise<UploadResult> {
-  const imageResponse = await fetch(imageUrl);
-  const imageBlob = await imageResponse.blob();
-
-  const dataUrl = await blobToDataURL(imageBlob);
+  const dataUrl = await downloadResourceViaProxy(imageUrl);
   const sanitizedPersonaName = personaName.replace(/[^a-zA-Z0-9]/g, '-');
   const filename = `councils/${conversationId}/avatars/${sanitizedPersonaName}-avatar.png`;
 
@@ -52,10 +83,7 @@ export async function uploadVideo(
   conversationId: string,
   messageId: string
 ): Promise<UploadResult> {
-  const videoResponse = await fetch(videoUrl);
-  const videoBlob = await videoResponse.blob();
-
-  const dataUrl = await blobToDataURL(videoBlob);
+  const dataUrl = await downloadResourceViaProxy(videoUrl);
   const sanitizedPersonaName = personaName.replace(/[^a-zA-Z0-9]/g, '-');
   const filename = `councils/${conversationId}/videos/${sanitizedPersonaName}-${messageId}.mp4`;
 

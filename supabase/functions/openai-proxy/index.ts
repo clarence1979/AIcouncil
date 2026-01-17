@@ -93,7 +93,39 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    throw new Error("Invalid action. Use 'test', 'chat', or 'image'");
+    if (action === "download") {
+      const { url } = data;
+
+      if (!url) {
+        throw new Error("URL is required for download action");
+      }
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to download resource: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const mimeType = response.headers.get("content-type") || "application/octet-stream";
+
+      return new Response(
+        JSON.stringify({
+          data: `data:${mimeType};base64,${base64}`,
+          contentType: mimeType,
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    throw new Error("Invalid action. Use 'test', 'chat', 'image', or 'download'");
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
