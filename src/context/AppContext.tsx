@@ -104,26 +104,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const updateParticipant = (id: string, updates: Partial<LocalAIParticipant>) => {
-    console.log('=== UPDATE PARTICIPANT ===');
-    console.log('Participant ID:', id);
-    console.log('Updates:', updates);
-    console.log('avatarUrl in updates:', updates.avatarUrl);
-    console.log('characterPersona.imageUrl in updates:', updates.characterPersona?.imageUrl);
-
-    const updated = participants.map(p => {
-      if (p.id === id) {
-        const merged = { ...p, ...updates };
-        console.log('Merged participant:', merged);
-        console.log('Merged avatarUrl:', merged.avatarUrl);
-        console.log('Merged characterPersona.imageUrl:', merged.characterPersona?.imageUrl);
-        return merged;
-      }
-      return p;
-    });
-
+    const updated = participants.map(p =>
+      p.id === id ? { ...p, ...updates } : p
+    );
     setParticipants(updated);
     localStorage.setItem('ai-participants', JSON.stringify(updated));
-    console.log('Participant updated in state and localStorage');
   };
 
   const removeParticipant = (id: string) => {

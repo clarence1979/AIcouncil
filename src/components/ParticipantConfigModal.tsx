@@ -161,9 +161,6 @@ export function ParticipantConfigModal({
       try {
         const imagePrompt = `A professional portrait photo of ${name.trim()}, ${characterPersona.description}. High quality, clear face, neutral background, photorealistic.`;
 
-        console.log('Generating avatar for:', name.trim());
-        console.log('Using prompt:', imagePrompt);
-
         const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
           headers: {
@@ -182,7 +179,6 @@ export function ParticipantConfigModal({
         if (imageResponse.ok) {
           const imageData = await imageResponse.json();
           const generatedUrl = imageData.data[0].url;
-          console.log('Avatar generated successfully:', generatedUrl);
           setTempAvatarUrl(generatedUrl);
           setTempCharacterPersona({
             ...characterPersona,
@@ -274,11 +270,6 @@ export function ParticipantConfigModal({
     if (updates.characterPersona?.voiceCharacteristics?.suggestedVoice) {
       updatesToSave.voiceName = updates.characterPersona.voiceCharacteristics.suggestedVoice;
     }
-
-    console.log('=== SAVING PERSONALITY ===');
-    console.log('avatarUrl:', updatesToSave.avatarUrl);
-    console.log('characterPersona.imageUrl:', updatesToSave.characterPersona?.imageUrl);
-    console.log('Full updates:', updatesToSave);
 
     onSave(updatesToSave);
     if (updates.characterPersona !== undefined) {

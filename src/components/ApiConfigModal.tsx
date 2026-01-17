@@ -77,15 +77,12 @@ export function ApiConfigModal() {
       }
 
       const data = await response.json();
-      const characterPersona: CharacterPersona = JSON.parse(data.choices[0].message.content);
+      let characterPersona: CharacterPersona = JSON.parse(data.choices[0].message.content);
 
       let avatarUrl = currentFormData.avatarUrl;
 
       try {
         const imagePrompt = `A professional portrait photo of ${name.trim()}, ${characterPersona.description}. High quality, clear face, neutral background, photorealistic.`;
-
-        console.log('Generating avatar for:', name.trim());
-        console.log('Using prompt:', imagePrompt);
 
         const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
@@ -105,7 +102,7 @@ export function ApiConfigModal() {
         if (imageResponse.ok) {
           const imageData = await imageResponse.json();
           avatarUrl = imageData.data[0].url;
-          console.log('Avatar generated successfully:', avatarUrl);
+          characterPersona = { ...characterPersona, imageUrl: avatarUrl };
         } else {
           const errorData = await imageResponse.json();
           console.error('Avatar generation failed:', errorData);
@@ -257,6 +254,7 @@ export function ApiConfigModal() {
         customName: data.customName || undefined,
         voiceName: data.voiceName || 'alloy',
         characterPersona: data.characterPersona,
+        avatarUrl: data.avatarUrl,
       });
     } else {
       const newParticipant: LocalAIParticipant = {
@@ -270,6 +268,7 @@ export function ApiConfigModal() {
         voiceName: data.voiceName || 'alloy',
         personality: getRandomPersonality(),
         avatar: getNextAvailableAvatar(),
+        avatarUrl: data.avatarUrl,
         characterPersona: data.characterPersona,
         config: {
           temperature: 0.7,
