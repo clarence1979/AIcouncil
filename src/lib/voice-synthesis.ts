@@ -43,18 +43,18 @@ export class VoiceSynthesizer {
     }
 
     const processedText = this.preprocessText(text);
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openai-tts`;
 
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+    const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'tts-1',
-        input: processedText,
+        text: processedText,
         voice: voice.toLowerCase(),
         speed: Math.max(0.25, Math.min(4.0, speed)),
+        apiKey: openaiApiKey,
       }),
     });
 

@@ -25,18 +25,33 @@ export abstract class AIClient {
 }
 
 export class OpenAIClient extends AIClient {
+  private proxyUrl: string;
+
   constructor(apiKey: string) {
     super(apiKey);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    this.proxyUrl = `${supabaseUrl}/functions/v1/openai-proxy`;
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch('https://api.openai.com/v1/models', {
+      const response = await fetch(this.proxyUrl, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          action: 'test',
+          apiKey: this.apiKey,
+        }),
       });
-      return response.ok;
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const result = await response.json();
+      return result.success;
     } catch {
       return false;
     }
@@ -47,17 +62,20 @@ export class OpenAIClient extends AIClient {
     model: string = 'gpt-4-turbo',
     config: AIClientConfig = {}
   ): Promise<string> {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(this.proxyUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
-        messages,
-        temperature: config.temperature ?? 0.7,
-        max_tokens: config.maxTokens ?? 500,
+        action: 'chat',
+        apiKey: this.apiKey,
+        data: {
+          model,
+          messages,
+          temperature: config.temperature ?? 0.7,
+          max_tokens: config.maxTokens ?? 500,
+        },
       }),
     });
 

@@ -31,18 +31,18 @@ export async function generateSpeech(
   const config = getPersonaConfig(personaName);
   const voice = characterVoice || options.voice || config.voiceId;
   const speed = options.speed || 1.0;
+  const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openai-tts`;
 
-  const response = await fetch('https://api.openai.com/v1/audio/speech', {
+  const response = await fetch(proxyUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'tts-1',
-      input: text,
+      text,
       voice,
       speed,
+      apiKey,
     }),
   });
 

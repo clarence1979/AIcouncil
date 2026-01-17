@@ -28,22 +28,26 @@ export async function generateAvatarOptions(
   const apiKey = await getOpenAIKey();
   const config = getPersonaConfig(personaName);
   const urls: string[] = [];
+  const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openai-proxy`;
 
   for (let i = 0; i < optionsCount; i++) {
     const variationPrompt = `${config.imagePrompt}. Variation ${i + 1}, unique appearance and styling.`;
 
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
+    const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: variationPrompt,
-        size: '1024x1024',
-        quality: 'hd',
-        n: 1,
+        action: 'image',
+        apiKey,
+        data: {
+          model: 'dall-e-3',
+          prompt: variationPrompt,
+          size: '1024x1024',
+          quality: 'hd',
+          n: 1,
+        },
       }),
     });
 

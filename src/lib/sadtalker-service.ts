@@ -24,14 +24,19 @@ function getReplicateApiKey(): string {
   return key;
 }
 
+const REPLICATE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/replicate-proxy`;
+
 async function createPrediction(apiKey: string, data: any) {
-  const response = await fetch('https://api.replicate.com/v1/predictions', {
+  const response = await fetch(REPLICATE_PROXY_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Token ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      action: 'create',
+      apiKey,
+      data,
+    }),
   });
 
   if (!response.ok) {
@@ -43,10 +48,16 @@ async function createPrediction(apiKey: string, data: any) {
 }
 
 async function getPrediction(apiKey: string, predictionId: string) {
-  const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+  const response = await fetch(REPLICATE_PROXY_URL, {
+    method: 'POST',
     headers: {
-      'Authorization': `Token ${apiKey}`,
+      'Content-Type': 'application/json',
     },
+    body: JSON.stringify({
+      action: 'get',
+      apiKey,
+      predictionId,
+    }),
   });
 
   if (!response.ok) {

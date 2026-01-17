@@ -66,7 +66,34 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    throw new Error("Invalid action");
+    if (action === "image") {
+      const response = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error?.message || "OpenAI image generation failed");
+      }
+
+      return new Response(
+        JSON.stringify(result),
+        {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    throw new Error("Invalid action. Use 'test', 'chat', or 'image'");
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
