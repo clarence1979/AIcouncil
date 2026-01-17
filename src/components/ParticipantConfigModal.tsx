@@ -67,6 +67,7 @@ export function ParticipantConfigModal({
   const [customTraits, setCustomTraits] = useState('');
   const [researchingCharacter, setResearchingCharacter] = useState(false);
   const [tempCharacterPersona, setTempCharacterPersona] = useState<CharacterPersona | null>(null);
+  const [tempAvatarUrl, setTempAvatarUrl] = useState<string | null>(null);
   const [testingVoice, setTestingVoice] = useState<string | null>(null);
 
   const providerInfo = AI_PROVIDERS[formData.provider as keyof typeof AI_PROVIDERS];
@@ -81,6 +82,7 @@ export function ParticipantConfigModal({
       });
       setCharacterName(participant.characterPersona?.name || '');
       setTempCharacterPersona(participant.characterPersona || null);
+      setTempAvatarUrl(participant.avatarUrl || null);
       setCustomDescription('');
       setCustomTraits('');
     }
@@ -152,6 +154,32 @@ export function ParticipantConfigModal({
       const data = await response.json();
       const characterPersona: CharacterPersona = JSON.parse(data.choices[0].message.content);
       setTempCharacterPersona(characterPersona);
+
+      try {
+        const imagePrompt = `A professional portrait photo of ${name.trim()}, ${characterPersona.description}. High quality, clear face, neutral background, photorealistic.`;
+
+        const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'dall-e-3',
+            prompt: imagePrompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'standard',
+          }),
+        });
+
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json();
+          setTempAvatarUrl(imageData.data[0].url);
+        }
+      } catch (imageError) {
+        console.error('Avatar generation error:', imageError);
+      }
     } catch (error) {
       console.error('Character research error:', error);
       alert('Failed to research character. Please try again.');
@@ -223,7 +251,7 @@ export function ParticipantConfigModal({
     onClose();
   };
 
-  const handleSavePersonality = (updates: { personality?: Personality; avatar?: Avatar; characterPersona?: CharacterPersona | null }) => {
+  const handleSavePersonality = (updates: { personality?: Personality; avatar?: Avatar; characterPersona?: CharacterPersona | null; avatarUrl?: string | null }) => {
     const updatesToSave: any = { ...updates };
 
     if (updates.characterPersona?.voiceCharacteristics?.suggestedVoice) {
@@ -233,6 +261,9 @@ export function ParticipantConfigModal({
     onSave(updatesToSave);
     if (updates.characterPersona !== undefined) {
       setTempCharacterPersona(updates.characterPersona);
+    }
+    if (updates.avatarUrl !== undefined) {
+      setTempAvatarUrl(updates.avatarUrl);
     }
   };
 
@@ -558,7 +589,10 @@ export function ParticipantConfigModal({
                   <div className="flex gap-3 pt-4 border-t border-purple-500/20">
                     <button
                       onClick={() => {
-                        handleSavePersonality({ characterPersona: tempCharacterPersona });
+                        handleSavePersonality({
+                          characterPersona: tempCharacterPersona,
+                          avatarUrl: tempAvatarUrl || participant.avatarUrl
+                        });
                         onClose();
                       }}
                       className="flex-1 py-3 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
@@ -567,8 +601,9 @@ export function ParticipantConfigModal({
                     </button>
                     <button
                       onClick={() => {
-                        handleSavePersonality({ characterPersona: null });
+                        handleSavePersonality({ characterPersona: null, avatarUrl: null });
                         setTempCharacterPersona(null);
+                        setTempAvatarUrl(null);
                       }}
                       className="flex-1 py-3 px-4 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors font-medium"
                     >

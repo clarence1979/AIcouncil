@@ -79,11 +79,40 @@ export function ApiConfigModal() {
       const data = await response.json();
       const characterPersona: CharacterPersona = JSON.parse(data.choices[0].message.content);
 
+      let avatarUrl = currentFormData.avatarUrl;
+
+      try {
+        const imagePrompt = `A professional portrait photo of ${name.trim()}, ${characterPersona.description}. High quality, clear face, neutral background, photorealistic.`;
+
+        const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'dall-e-3',
+            prompt: imagePrompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'standard',
+          }),
+        });
+
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json();
+          avatarUrl = imageData.data[0].url;
+        }
+      } catch (imageError) {
+        console.error('Avatar generation error:', imageError);
+      }
+
       setFormData({
         ...formData,
         [provider]: {
           ...currentFormData,
           characterPersona,
+          avatarUrl,
         },
       });
     } catch (error) {

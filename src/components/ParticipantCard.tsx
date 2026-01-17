@@ -15,10 +15,10 @@ export function ParticipantCard({
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-blue-500/20 p-3 shadow-lg shadow-blue-500/5 hover:shadow-blue-500/10 hover:border-blue-400/30 transition-all">
       <div className="flex items-start gap-3">
-        {participant.characterPersona?.imageUrl ? (
+        {participant.avatarUrl || participant.characterPersona?.imageUrl ? (
           <img
-            src={participant.characterPersona.imageUrl}
-            alt={participant.characterPersona.name}
+            src={participant.avatarUrl || participant.characterPersona?.imageUrl}
+            alt={participant.characterPersona?.name || participant.customName || participant.defaultName}
             className="w-16 h-16 rounded-full object-cover flex-shrink-0 shadow-lg border-2 border-purple-400/50"
           />
         ) : (
