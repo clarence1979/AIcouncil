@@ -108,7 +108,17 @@ Deno.serve(async (req: Request) => {
 
       const blob = await response.blob();
       const arrayBuffer = await blob.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const chunkSize = 8192;
+      let base64 = '';
+
+      for (let i = 0; i < uint8Array.length; i += chunkSize) {
+        const chunk = uint8Array.slice(i, i + chunkSize);
+        base64 += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+
+      base64 = btoa(base64);
       const mimeType = response.headers.get("content-type") || "application/octet-stream";
 
       return new Response(

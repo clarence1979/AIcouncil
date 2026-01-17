@@ -26,24 +26,30 @@ async function downloadResourceViaProxy(url: string): Promise<string> {
     throw new Error('OpenAI API key required for resource downloads');
   }
 
-  const response = await fetch(proxyUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: 'download',
-      apiKey,
-      data: { url },
-    }),
-  });
+  try {
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'download',
+        apiKey,
+        data: { url },
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Failed to download resource via proxy: ${response.statusText}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(`Failed to download resource via proxy: ${errorData.error || response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  } catch (error) {
+    console.error('Download via proxy failed, using direct URL:', error);
+    return url;
   }
-
-  const result = await response.json();
-  return result.data;
 }
 
 export async function uploadAvatar(
