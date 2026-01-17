@@ -235,7 +235,7 @@ export function ApiConfigModal() {
   };
 
   const getNextAvailableAvatar = (): Avatar => {
-    const usedAvatars = participants.map(p => p.avatar).filter(Boolean);
+    const usedAvatars = participants.filter(p => p.isActive).map(p => p.avatar).filter(Boolean);
     const available = AVAILABLE_AVATARS.find(avatar => !usedAvatars.includes(avatar));
     return available || '🤖';
   };
@@ -300,7 +300,7 @@ export function ApiConfigModal() {
   };
 
   const getProviderParticipants = (provider: string) => {
-    return participants.filter(p => p.provider === provider);
+    return participants.filter(p => p.provider === provider && p.isActive);
   };
 
   return (

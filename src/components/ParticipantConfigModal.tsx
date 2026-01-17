@@ -70,9 +70,6 @@ export function ParticipantConfigModal({
   const [tempAvatarUrl, setTempAvatarUrl] = useState<string | null>(null);
   const [testingVoice, setTestingVoice] = useState<string | null>(null);
 
-  console.log('[ParticipantConfigModal] Rendering - tempAvatarUrl:', tempAvatarUrl);
-  console.log('[ParticipantConfigModal] tempCharacterPersona:', tempCharacterPersona?.name);
-
   const providerInfo = AI_PROVIDERS[formData.provider as keyof typeof AI_PROVIDERS];
 
   useEffect(() => {
@@ -186,9 +183,7 @@ export function ParticipantConfigModal({
           const imageData = await imageResponse.json();
           const generatedUrl = imageData.data[0].url;
           console.log('Avatar generated successfully:', generatedUrl);
-          console.log('Setting tempAvatarUrl to:', generatedUrl);
           setTempAvatarUrl(generatedUrl);
-          console.log('setTempAvatarUrl called');
         } else {
           const errorData = await imageResponse.json();
           console.error('Avatar generation failed:', errorData);
@@ -275,9 +270,6 @@ export function ParticipantConfigModal({
     if (updates.characterPersona?.voiceCharacteristics?.suggestedVoice) {
       updatesToSave.voiceName = updates.characterPersona.voiceCharacteristics.suggestedVoice;
     }
-
-    console.log('Saving personality updates:', updatesToSave);
-    console.log('Avatar URL being saved:', updatesToSave.avatarUrl);
 
     onSave(updatesToSave);
     if (updates.characterPersona !== undefined) {
@@ -610,11 +602,6 @@ export function ParticipantConfigModal({
                   <div className="flex gap-3 pt-4 border-t border-purple-500/20">
                     <button
                       onClick={() => {
-                        console.log('=== SAVE CHARACTER BUTTON CLICKED ===');
-                        console.log('tempCharacterPersona:', tempCharacterPersona);
-                        console.log('tempAvatarUrl:', tempAvatarUrl);
-                        console.log('participant.avatarUrl:', participant.avatarUrl);
-                        console.log('Will save avatarUrl:', tempAvatarUrl || participant.avatarUrl);
                         handleSavePersonality({
                           characterPersona: tempCharacterPersona,
                           avatarUrl: tempAvatarUrl || participant.avatarUrl

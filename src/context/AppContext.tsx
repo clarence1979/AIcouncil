@@ -104,19 +104,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const updateParticipant = (id: string, updates: Partial<LocalAIParticipant>) => {
-    console.log('updateParticipant called with id:', id, 'updates:', updates);
-    const updated = participants.map(p => {
-      if (p.id === id) {
-        const merged = { ...p, ...updates };
-        console.log('Merged participant:', merged);
-        console.log('Merged avatarUrl:', merged.avatarUrl);
-        return merged;
-      }
-      return p;
-    });
+    const updated = participants.map(p =>
+      p.id === id ? { ...p, ...updates } : p
+    );
     setParticipants(updated);
     localStorage.setItem('ai-participants', JSON.stringify(updated));
-    console.log('Participants updated in state and localStorage');
   };
 
   const removeParticipant = (id: string) => {
