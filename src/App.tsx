@@ -110,6 +110,9 @@ export default function App() {
       async (participant, content) => {
         setTypingParticipant(null);
 
+        const avatarImageUrl = participant.avatarUrl || participant.characterPersona?.imageUrl;
+        const characterName = participant.characterPersona?.name || participant.customName || participant.defaultName;
+
         const newMessage: Message = {
           id: crypto.randomUUID(),
           conversationId: 'local',
@@ -118,7 +121,7 @@ export default function App() {
           content,
           turnNumber: currentTurn,
           createdAt: new Date().toISOString(),
-          videoStatus: (conversationSettings.enableTalkingHeads && participant.characterPersona?.imageUrl) ? 'generating' : undefined,
+          videoStatus: (conversationSettings.enableTalkingHeads && avatarImageUrl) ? 'generating' : undefined,
         };
 
         messagesRef.current = [...messagesRef.current, newMessage];
@@ -133,13 +136,13 @@ export default function App() {
           messageCount: participant.messageCount + 1,
         });
 
-        if (conversationSettings.enableTalkingHeads && participant.characterPersona?.imageUrl) {
+        if (conversationSettings.enableTalkingHeads && avatarImageUrl) {
           try {
             const suggestedVoice = participant.characterPersona?.voiceCharacteristics?.suggestedVoice;
             const result = await createTalkingHeadForMessage(
-              participant.characterPersona.name,
+              characterName,
               content,
-              participant.characterPersona.imageUrl,
+              avatarImageUrl,
               'local',
               newMessage.id,
               (status) => {

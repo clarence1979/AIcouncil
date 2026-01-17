@@ -153,7 +153,7 @@ export function SettingsModal() {
                 <div>
                   <div className="font-medium text-gray-900">Enable Talking Head Videos</div>
                   <div className="text-sm text-gray-500">
-                    Generate animated videos for character personas (slower, requires Replicate API)
+                    Generate animated videos using AI-generated character portraits. Requires Replicate API and takes 15-20 seconds per message.
                   </div>
                 </div>
               </label>

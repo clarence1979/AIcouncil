@@ -534,9 +534,9 @@ export function ParticipantConfigModal({
               ) : (
                 <div className="bg-purple-900/20 border-2 border-purple-500/30 rounded-xl p-6 space-y-4">
                   <div className="flex items-start gap-4">
-                    {tempCharacterPersona.imageUrl && (
+                    {(tempAvatarUrl || tempCharacterPersona.imageUrl) && (
                       <img
-                        src={tempCharacterPersona.imageUrl}
+                        src={tempAvatarUrl || tempCharacterPersona.imageUrl}
                         alt={tempCharacterPersona.name}
                         className="w-24 h-24 rounded-xl object-cover border-2 border-purple-400/50 shadow-lg"
                       />
