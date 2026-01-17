@@ -282,6 +282,9 @@ export default function App() {
 
   const handleSaveConfig = (updates: Partial<LocalAIParticipant>) => {
     if (configuringParticipant) {
+      console.log('handleSaveConfig called with updates:', updates);
+      console.log('Updating participant:', configuringParticipant.id);
+      console.log('Avatar URL in updates:', updates.avatarUrl);
       updateParticipant(configuringParticipant.id, updates);
     }
   };

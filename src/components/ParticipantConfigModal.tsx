@@ -158,6 +158,9 @@ export function ParticipantConfigModal({
       try {
         const imagePrompt = `A professional portrait photo of ${name.trim()}, ${characterPersona.description}. High quality, clear face, neutral background, photorealistic.`;
 
+        console.log('Generating avatar for:', name.trim());
+        console.log('Using prompt:', imagePrompt);
+
         const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
           headers: {
@@ -175,10 +178,17 @@ export function ParticipantConfigModal({
 
         if (imageResponse.ok) {
           const imageData = await imageResponse.json();
-          setTempAvatarUrl(imageData.data[0].url);
+          const generatedUrl = imageData.data[0].url;
+          console.log('Avatar generated successfully:', generatedUrl);
+          setTempAvatarUrl(generatedUrl);
+        } else {
+          const errorData = await imageResponse.json();
+          console.error('Avatar generation failed:', errorData);
+          alert(`Failed to generate avatar: ${errorData.error?.message || 'Unknown error'}`);
         }
       } catch (imageError) {
         console.error('Avatar generation error:', imageError);
+        alert(`Error generating avatar: ${imageError instanceof Error ? imageError.message : 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Character research error:', error);
@@ -257,6 +267,9 @@ export function ParticipantConfigModal({
     if (updates.characterPersona?.voiceCharacteristics?.suggestedVoice) {
       updatesToSave.voiceName = updates.characterPersona.voiceCharacteristics.suggestedVoice;
     }
+
+    console.log('Saving personality updates:', updatesToSave);
+    console.log('Avatar URL being saved:', updatesToSave.avatarUrl);
 
     onSave(updatesToSave);
     if (updates.characterPersona !== undefined) {
