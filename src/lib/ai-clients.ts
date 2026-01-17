@@ -141,16 +141,33 @@ export class AnthropicClient extends AIClient {
 }
 
 export class GeminiClient extends AIClient {
+  private proxyUrl: string;
+
   constructor(apiKey: string) {
     super(apiKey);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    this.proxyUrl = `${supabaseUrl}/functions/v1/gemini-proxy`;
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`
-      );
-      return response.ok;
+      const response = await fetch(this.proxyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'test',
+          apiKey: this.apiKey,
+        }),
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const result = await response.json();
+      return result.success;
     } catch {
       return false;
     }
@@ -171,6 +188,7 @@ export class GeminiClient extends AIClient {
     const systemInstruction = messages.find(m => m.role === 'system')?.content;
 
     const requestBody: any = {
+      model,
       contents,
       generationConfig: {
         temperature: config.temperature ?? 0.7,
@@ -184,16 +202,17 @@ export class GeminiClient extends AIClient {
       };
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      }
-    );
+    const response = await fetch(this.proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'chat',
+        apiKey: this.apiKey,
+        data: requestBody,
+      }),
+    });
 
     if (!response.ok) {
       const error = await response.text();
