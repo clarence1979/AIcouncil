@@ -54,6 +54,12 @@ export default function App() {
       return;
     }
 
+    const activeParticipants = participants.filter(p => p.isActive);
+    if (activeParticipants.length === 0) {
+      alert('Please activate at least one AI participant!');
+      return;
+    }
+
     const topicMessage: Message = {
       id: crypto.randomUUID(),
       conversationId: 'local',
@@ -205,21 +211,47 @@ export default function App() {
         const shouldContinue =
           conversationSettings.maxTurns === 0 || newTurn < conversationSettings.maxTurns;
 
-        if (shouldContinue && orchestratorRef.current) {
-          continueConversation();
-        } else {
+        if (shouldContinue && orchestratorRef.current && !isPaused) {
+          setTimeout(() => {
+            if (orchestratorRef.current && !isPaused) {
+              continueConversation();
+            }
+          }, 100);
+        } else if (!shouldContinue) {
           handleStopConversation();
         }
       },
       (participant, error) => {
         setTypingParticipant(null);
-        addMessage({
+        const errorMessage: Message = {
+          id: crypto.randomUUID(),
           conversationId: 'local',
+          participantId: participant.id,
           senderType: 'ai',
           content: `[Error: ${error}]`,
           turnNumber: currentTurn,
-        });
-        setTimeout(() => continueConversation(), 2000);
+          createdAt: new Date().toISOString(),
+        };
+
+        messagesRef.current = [...messagesRef.current, errorMessage];
+        if (orchestratorRef.current) {
+          orchestratorRef.current.setMessages(messagesRef.current);
+        }
+        addMessage(errorMessage);
+
+        const newTurn = currentTurn + 1;
+        setCurrentTurn(newTurn);
+
+        const shouldContinue =
+          conversationSettings.maxTurns === 0 || newTurn < conversationSettings.maxTurns;
+
+        if (shouldContinue && orchestratorRef.current && !isPaused) {
+          setTimeout(() => {
+            if (orchestratorRef.current && !isPaused) {
+              continueConversation();
+            }
+          }, 2000);
+        }
       }
     );
   };

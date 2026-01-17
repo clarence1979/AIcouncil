@@ -189,8 +189,6 @@ export function MessageBubble({ message, synthesizer, onEditName }: MessageBubbl
                         }}
                         playsInline
                         autoPlay
-                        muted
-                        loop
                         controls
                         crossOrigin="anonymous"
                       />
