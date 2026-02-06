@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, Send, Keyboard } from 'lucide-react';
 import { VoiceRecognizer } from '../lib/voice-synthesis';
+import { useToast } from './Toast';
 
 interface TopicInputProps {
   onSubmit: (topic: string) => void;
@@ -9,6 +10,7 @@ interface TopicInputProps {
 }
 
 export function TopicInput({ onSubmit, disabled, isConversationActive }: TopicInputProps) {
+  const toast = useToast();
   const [topic, setTopic] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [useVoice, setUseVoice] = useState(false);
@@ -23,7 +25,7 @@ export function TopicInput({ onSubmit, disabled, isConversationActive }: TopicIn
 
   const handleVoiceInput = () => {
     if (!recognizerRef.current?.isSupported()) {
-      alert('Voice recognition is not supported in your browser');
+      toast.warning('Voice recognition is not supported in your browser.');
       return;
     }
 

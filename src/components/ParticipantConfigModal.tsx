@@ -3,6 +3,7 @@ import { X, Eye, EyeOff, User, Sparkles, Volume2 } from 'lucide-react';
 import type { LocalAIParticipant, Avatar, Personality, CharacterPersona } from '../types';
 import { AI_VOICES } from '../types';
 import { AI_PROVIDERS } from '../lib/ai-clients';
+import { useToast } from './Toast';
 
 interface ParticipantConfigModalProps {
   isOpen: boolean;
@@ -54,6 +55,7 @@ export function ParticipantConfigModal({
   usedAvatars,
   onSave,
 }: ParticipantConfigModalProps) {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('basic');
   const [showApiKey, setShowApiKey] = useState(false);
   const [formData, setFormData] = useState({
@@ -95,7 +97,7 @@ export function ParticipantConfigModal({
     const newProviderInfo = AI_PROVIDERS[newProvider as keyof typeof AI_PROVIDERS];
     setFormData({
       ...formData,
-      provider: newProvider,
+      provider: newProvider as LocalAIParticipant['provider'],
       model: newProviderInfo.models[0].id,
     });
   };
@@ -107,7 +109,7 @@ export function ParticipantConfigModal({
     const apiKey = openaiParticipant?.apiKey;
 
     if (!apiKey) {
-      alert('OpenAI API key is required for character research. Please configure an OpenAI participant first.');
+      toast.warning('OpenAI API key is required for character research. Configure an OpenAI participant first.');
       return;
     }
 
@@ -187,15 +189,15 @@ export function ParticipantConfigModal({
         } else {
           const errorData = await imageResponse.json();
           console.error('Avatar generation failed:', errorData);
-          alert(`Failed to generate avatar: ${errorData.error?.message || 'Unknown error'}`);
+          toast.error(`Avatar generation failed: ${errorData.error?.message || 'Unknown error'}`);
         }
       } catch (imageError) {
         console.error('Avatar generation error:', imageError);
-        alert(`Error generating avatar: ${imageError instanceof Error ? imageError.message : 'Unknown error'}`);
+        toast.error(`Avatar generation error: ${imageError instanceof Error ? imageError.message : 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Character research error:', error);
-      alert('Failed to research character. Please try again.');
+      toast.error('Failed to research character. Please try again.');
     } finally {
       setResearchingCharacter(false);
     }
@@ -209,7 +211,7 @@ export function ParticipantConfigModal({
       const apiKey = openaiParticipant?.apiKey;
 
       if (!apiKey) {
-        alert('OpenAI API key required for voice preview');
+        toast.warning('OpenAI API key required for voice preview.');
         setTestingVoice(null);
         return;
       }

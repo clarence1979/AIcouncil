@@ -4,7 +4,7 @@ import type { Message, LocalAIParticipant } from '../types';
 export async function generateTranscriptPDF(
   messages: Message[],
   participants: LocalAIParticipant[],
-  topic: string
+  _topic: string
 ) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -62,7 +62,7 @@ export async function generateTranscriptPDF(
 
   const aiMessages = messages.filter(m => m.senderType === 'ai');
 
-  aiMessages.forEach((msg, index) => {
+  aiMessages.forEach((msg) => {
     const participant = participants.find(p => p.id === msg.participantId);
     const name = participant?.customName || participant?.defaultName || 'AI';
     const avatar = participant?.avatar || '🤖';

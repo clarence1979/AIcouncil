@@ -8,6 +8,7 @@ export class ConversationOrchestrator {
   private maxTokens: number;
   private conversationStyle: string;
   private isRunning: boolean = false;
+  private manualNextSpeakerId: string | null = null;
 
   constructor(
     participants: LocalAIParticipant[],
@@ -24,6 +25,10 @@ export class ConversationOrchestrator {
 
   setMessages(messages: Message[]) {
     this.messages = messages;
+  }
+
+  setManualNextSpeaker(participantId: string) {
+    this.manualNextSpeakerId = participantId;
   }
 
   stop() {
@@ -84,7 +89,7 @@ export class ConversationOrchestrator {
       case 'contextual':
         return this.getContextualParticipant();
       case 'manual':
-        return null;
+        return this.getManualParticipant();
       default:
         return this.getNextSequential();
     }
@@ -112,12 +117,72 @@ export class ConversationOrchestrator {
   }
 
   private getRandomParticipant(): LocalAIParticipant {
-    const randomIndex = Math.floor(Math.random() * this.participants.length);
-    return this.participants[randomIndex];
+    if (this.participants.length <= 1) return this.participants[0];
+
+    const lastAiMessage = [...this.messages].reverse().find((m) => m.senderType === 'ai');
+    const eligible = lastAiMessage
+      ? this.participants.filter(p => p.id !== lastAiMessage.participantId)
+      : this.participants;
+
+    return eligible[Math.floor(Math.random() * eligible.length)] || this.participants[0];
   }
 
   private getContextualParticipant(): LocalAIParticipant {
-    return this.getRandomParticipant();
+    if (this.participants.length <= 1) return this.participants[0];
+
+    const lastAiMessage = [...this.messages].reverse().find((m) => m.senderType === 'ai');
+    const lastContent = lastAiMessage?.content?.toLowerCase() || '';
+
+    let bestMatch: LocalAIParticipant | null = null;
+    let bestScore = -1;
+
+    for (const p of this.participants) {
+      if (p.id === lastAiMessage?.participantId) continue;
+
+      let score = 0;
+      const name = (p.customName || p.defaultName).toLowerCase();
+      if (lastContent.includes(name)) score += 10;
+
+      if (p.characterPersona) {
+        for (const trait of p.characterPersona.traits) {
+          if (lastContent.includes(trait.toLowerCase())) score += 3;
+        }
+        if (lastContent.includes(p.characterPersona.name.toLowerCase())) score += 5;
+      }
+
+      const personalityKeywords: Record<string, string[]> = {
+        analytical: ['data', 'evidence', 'logic', 'numbers', 'research', 'proof'],
+        creative: ['imagine', 'create', 'design', 'art', 'novel', 'innovative'],
+        skeptical: ['doubt', 'question', 'really', 'prove', 'evidence', 'sure'],
+        philosophical: ['meaning', 'purpose', 'existence', 'truth', 'moral', 'ethics'],
+        pragmatic: ['practical', 'real', 'actually', 'work', 'solution', 'implement'],
+        enthusiastic: ['amazing', 'great', 'love', 'exciting', 'wonderful'],
+        sarcastic: ['obviously', 'sure', 'right', 'clearly', 'genius'],
+        witty: ['joke', 'funny', 'humor', 'clever', 'absurd'],
+      };
+
+      const keywords = personalityKeywords[p.personality] || [];
+      for (const kw of keywords) {
+        if (lastContent.includes(kw)) score += 2;
+      }
+
+      if (lastContent.includes('?')) score += 1;
+      score += Math.random() * 3;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = p;
+      }
+    }
+
+    return bestMatch || this.getRandomParticipant();
+  }
+
+  private getManualParticipant(): LocalAIParticipant | null {
+    if (!this.manualNextSpeakerId) return null;
+    const participant = this.participants.find(p => p.id === this.manualNextSpeakerId);
+    this.manualNextSpeakerId = null;
+    return participant || null;
   }
 
   private buildContext(currentParticipant: LocalAIParticipant): AIMessage[] {

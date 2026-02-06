@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Check, AlertCircle, Sparkles, User } from 'lucide-react';
+import { useState } from 'react';
+import { X, Eye, EyeOff, Check, AlertCircle, Sparkles } from 'lucide-react';
 import { AI_PROVIDERS, createAIClient } from '../lib/ai-clients';
 import { useApp } from '../context/AppContext';
+import { useToast } from './Toast';
 import type { LocalAIParticipant, Avatar, Personality, CharacterPersona } from '../types';
 import { AI_VOICES } from '../types';
 
@@ -10,6 +11,7 @@ const AVAILABLE_PERSONALITIES: Personality[] = ['analytical', 'creative', 'sarca
 
 export function ApiConfigModal() {
   const { participants, addParticipant, updateParticipant, removeParticipant, setShowApiConfig } = useApp();
+  const toast = useToast();
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -20,7 +22,7 @@ export function ApiConfigModal() {
   const [testingVoice, setTestingVoice] = useState<string | null>(null);
   const [researchingCharacter, setResearchingCharacter] = useState<Record<string, boolean>>({});
   const [characterName, setCharacterName] = useState<Record<string, string>>({});
-  const [showCustomCharacter, setShowCustomCharacter] = useState<Record<string, boolean>>({});
+
 
   const handleResearchCharacter = async (provider: string) => {
     const name = characterName[provider];
@@ -33,7 +35,7 @@ export function ApiConfigModal() {
       : openaiParticipant?.apiKey;
 
     if (!apiKey) {
-      alert('OpenAI API key is required for character research. Please configure an OpenAI participant first or enter your API key.');
+      toast.warning('OpenAI API key is required for character research. Please configure an OpenAI participant first.');
       return;
     }
 
@@ -106,11 +108,11 @@ export function ApiConfigModal() {
         } else {
           const errorData = await imageResponse.json();
           console.error('Avatar generation failed:', errorData);
-          alert(`Failed to generate avatar: ${errorData.error?.message || 'Unknown error'}`);
+          toast.error(`Avatar generation failed: ${errorData.error?.message || 'Unknown error'}`);
         }
       } catch (imageError) {
         console.error('Avatar generation error:', imageError);
-        alert(`Error generating avatar: ${imageError instanceof Error ? imageError.message : 'Unknown error'}`);
+        toast.error(`Avatar generation error: ${imageError instanceof Error ? imageError.message : 'Unknown error'}`);
       }
 
       setFormData({
@@ -123,7 +125,7 @@ export function ApiConfigModal() {
       });
     } catch (error) {
       console.error('Character research error:', error);
-      alert('Failed to research character. Please try again.');
+      toast.error('Failed to research character. Please try again.');
     } finally {
       setResearchingCharacter({ ...researchingCharacter, [provider]: false });
     }
@@ -303,13 +305,13 @@ export function ApiConfigModal() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">Configure AI Participants</h2>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border border-blue-500/30 max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-blue-500/20">
+          <h2 className="text-2xl font-bold text-blue-100">Configure AI Participants</h2>
           <button
             onClick={() => setShowApiConfig(false)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-blue-300 hover:text-blue-100 transition-colors"
           >
             <X size={24} />
           </button>
@@ -327,19 +329,14 @@ export function ApiConfigModal() {
                 {index > 0 && (
                   <div className="relative mb-6">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t-2 border-gray-300"></div>
-                    </div>
-                    <div className="relative flex justify-center">
-                      <span className="bg-white px-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">
-                        Or
-                      </span>
+                      <div className="w-full border-t border-blue-500/20"></div>
                     </div>
                   </div>
                 )}
                 <div
-                  className="border-2 border-gray-300 rounded-xl overflow-hidden transition-all shadow-sm hover:shadow-md"
+                  className="border border-blue-500/20 rounded-xl overflow-hidden transition-all hover:border-blue-500/40"
                 >
-                <div className="p-4 hover:bg-gray-50 transition-colors">
+                <div className="p-4 hover:bg-gray-800/30 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div
@@ -349,20 +346,20 @@ export function ApiConfigModal() {
                         {provider.icon}
                       </div>
                       <div className="text-left">
-                        <h3 className="font-semibold text-gray-900">{provider.name}</h3>
-                        <p className="text-sm text-gray-500">
+                        <h3 className="font-semibold text-blue-100">{provider.name}</h3>
+                        <p className="text-sm text-blue-300/60">
                           {provider.models.map(m => m.name).join(', ')}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {providerParticipants.length > 0 && (
-                        <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                        <span className="text-sm font-medium text-emerald-400 flex items-center gap-1">
                           <Check size={16} /> {providerParticipants.length} Active
                         </span>
                       )}
                       {providerParticipants.length === 0 && (
-                        <span className="text-sm text-gray-400">Not Configured</span>
+                        <span className="text-sm text-blue-400/50">Not Configured</span>
                       )}
                     </div>
                   </div>
@@ -372,14 +369,14 @@ export function ApiConfigModal() {
                       {providerParticipants.map((participant) => (
                         <div
                           key={participant.id}
-                          className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                          className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg"
                         >
                           <div className="flex items-center gap-2">
                             <span className="text-xl">{participant.avatar}</span>
-                            <span className="text-sm font-medium text-gray-700">
+                            <span className="text-sm font-medium text-blue-100">
                               {participant.customName || participant.defaultName}
                             </span>
-                            <span className="text-xs text-gray-500">({participant.model})</span>
+                            <span className="text-xs text-blue-300/60">({participant.model})</span>
                           </div>
                           <div className="flex gap-1">
                             <button
@@ -402,16 +399,16 @@ export function ApiConfigModal() {
 
                   <button
                     onClick={() => handleProviderClick(key)}
-                    className="mt-3 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                    className="mt-3 w-full px-4 py-2 bg-blue-600/80 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm"
                   >
                     + Add {providerParticipants.length > 0 ? 'Another' : 'New'} {provider.name} Participant
                   </button>
                 </div>
 
                 {expanded && (
-                  <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-4">
+                  <div className="p-4 bg-gray-800/30 border-t border-blue-500/20 space-y-4">
                     {justSaved === key && (
-                      <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 text-green-700 border-2 border-green-200 animate-fadeIn">
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-900/30 text-emerald-300 border border-emerald-500/30 animate-fadeIn">
                         <Check size={18} className="flex-shrink-0" />
                         <span className="text-sm font-semibold">
                           Successfully saved! AI added to your council.
@@ -420,7 +417,7 @@ export function ApiConfigModal() {
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-blue-200 mb-2">
                         API Key
                       </label>
                       <div className="relative">
@@ -434,13 +431,13 @@ export function ApiConfigModal() {
                             })
                           }
                           placeholder="Enter your API key"
-                          className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-2 pr-10 bg-gray-800/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-400/40 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                         <button
                           onClick={() =>
                             setShowApiKey({ ...showApiKey, [key]: !showApiKey[key] })
                           }
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-300"
                         >
                           {showApiKey[key] ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -448,7 +445,7 @@ export function ApiConfigModal() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-blue-200 mb-2">
                         Model
                       </label>
                       <select
@@ -459,7 +456,7 @@ export function ApiConfigModal() {
                             [key]: { ...data, model: e.target.value },
                           })
                         }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 bg-gray-800/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-400/40 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         {provider.models.map((model) => (
                           <option key={model.id} value={model.id}>
@@ -470,7 +467,7 @@ export function ApiConfigModal() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-blue-200 mb-2">
                         Custom Name (Optional)
                       </label>
                       <input
@@ -483,12 +480,12 @@ export function ApiConfigModal() {
                           })
                         }
                         placeholder={`e.g., The ${provider.name} Philosopher`}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 bg-gray-800/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-400/40 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-blue-200 mb-2">
                         AI Voice (Powered by OpenAI)
                       </label>
                       <div className="grid grid-cols-1 gap-2">
@@ -498,7 +495,7 @@ export function ApiConfigModal() {
                             className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
                               data.voiceName === voice.id
                                 ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 bg-white hover:border-blue-300'
+                                : 'border-blue-500/20 bg-gray-800/30 hover:border-blue-400/50'
                             }`}
                             onClick={() =>
                               setFormData({
@@ -509,8 +506,8 @@ export function ApiConfigModal() {
                           >
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="font-medium text-gray-800">{voice.name}</div>
-                                <div className="text-sm text-gray-600">{voice.description}</div>
+                                <div className="font-medium text-blue-100">{voice.name}</div>
+                                <div className="text-sm text-blue-300/70">{voice.description}</div>
                               </div>
                               <button
                                 onClick={(e) => {
@@ -526,13 +523,13 @@ export function ApiConfigModal() {
                           </div>
                         ))}
                       </div>
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p className="text-xs text-blue-300/50 mt-2">
                         Professional AI voices from OpenAI. Each has a unique personality!
                       </p>
                     </div>
 
                     <div className="border-t border-gray-200 pt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-blue-200 mb-2">
                         Character Persona (Optional)
                       </label>
                       <p className="text-xs text-gray-600 mb-3">
@@ -549,7 +546,7 @@ export function ApiConfigModal() {
                                 setCharacterName({ ...characterName, [key]: e.target.value })
                               }
                               placeholder="e.g., Albert Einstein, Sherlock Holmes, Yoda"
-                              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="flex-1 px-4 py-2 bg-gray-800/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-400/40 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                             <button
                               onClick={() => handleResearchCharacter(key)}
@@ -615,8 +612,8 @@ export function ApiConfigModal() {
                       <div
                         className={`flex items-start gap-2 p-3 rounded-lg ${
                           testResult
-                            ? 'bg-green-50 text-green-700 border-2 border-green-200'
-                            : 'bg-red-50 text-red-700'
+                            ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-red-900/30 text-red-300 border border-red-500/30'
                         }`}
                       >
                         {testResult ? (
@@ -626,7 +623,7 @@ export function ApiConfigModal() {
                               <div className="text-sm font-semibold mb-1">
                                 Connection successful!
                               </div>
-                              <div className="text-xs text-green-600">
+                              <div className="text-xs text-emerald-400">
                                 Now click "Save Configuration" below to add this AI to your council.
                               </div>
                             </div>
@@ -646,7 +643,7 @@ export function ApiConfigModal() {
                       <button
                         onClick={() => handleTestConnection(key)}
                         disabled={!data.apiKey || testing[key]}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                        className="flex-1 px-4 py-2 border border-blue-500/30 text-blue-200 rounded-lg hover:bg-gray-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                       >
                         {testing[key] ? 'Testing...' : 'Test Connection'}
                       </button>
@@ -669,17 +666,14 @@ export function ApiConfigModal() {
             );
           })}
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-semibold text-blue-900 mb-2">How to get API keys:</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• OpenAI: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline">platform.openai.com/api-keys</a></li>
-              <li>• Anthropic: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="underline">console.anthropic.com/settings/keys</a></li>
-              <li>• Google: <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">makersuite.google.com/app/apikey</a></li>
-              <li>• Replicate (for talking heads): <a href="https://replicate.com/account/api-tokens" target="_blank" rel="noopener noreferrer" className="underline">replicate.com/account/api-tokens</a></li>
+          <div className="mt-6 p-4 bg-blue-900/20 border border-blue-500/20 rounded-lg">
+            <h4 className="font-semibold text-blue-200 mb-2">How to get API keys:</h4>
+            <ul className="text-sm text-blue-300/80 space-y-1">
+              <li>OpenAI: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">platform.openai.com/api-keys</a></li>
+              <li>Anthropic: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">console.anthropic.com/settings/keys</a></li>
+              <li>Google: <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">makersuite.google.com/app/apikey</a></li>
+              <li>Replicate: <a href="https://replicate.com/account/api-tokens" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">replicate.com/account/api-tokens</a></li>
             </ul>
-            <p className="text-xs text-blue-700 mt-2">
-              Note: Replicate API key is managed in your browser's local storage automatically. The app will prompt you when needed.
-            </p>
           </div>
         </div>
       </div>

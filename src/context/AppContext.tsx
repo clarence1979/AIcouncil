@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { LocalAIParticipant, Message, ConversationSettings } from '../types';
+import type { LocalAIParticipant, Message, ConversationSettings, Avatar } from '../types';
 
 interface AppContextType {
   participants: LocalAIParticipant[];
@@ -26,7 +26,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [participants, setParticipants] = useState<LocalAIParticipant[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [currentConversationId] = useState<string | null>(null);
   const [isConversationActive, setIsConversationActive] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showApiConfig, setShowApiConfig] = useState(false);
@@ -69,7 +69,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         let avatar = p.avatar;
         if (needsAvatar) {
-          avatar = availableAvatars.find(a => !usedAvatars.has(a)) || '🤖';
+          avatar = (availableAvatars.find(a => !usedAvatars.has(a)) || '🤖') as Avatar;
         }
         usedAvatars.add(avatar);
 

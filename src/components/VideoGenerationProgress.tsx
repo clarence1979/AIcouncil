@@ -57,8 +57,6 @@ export function VideoGenerationProgress({
           const Icon = step.icon;
           const isComplete = index < currentStepIndex;
           const isCurrent = index === currentStepIndex;
-          const isPending = index > currentStepIndex;
-
           return (
             <div
               key={step.id}

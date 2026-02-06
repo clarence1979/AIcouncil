@@ -7,7 +7,6 @@ export interface VoiceOptions {
 
 export class VoiceSynthesizer {
   private currentAudio: HTMLAudioElement | null = null;
-  private audioQueue: { text: string; options: VoiceOptions }[] = [];
   private isPlaying: boolean = false;
 
   private getOpenAIApiKey(): string | null {

@@ -97,17 +97,18 @@ export async function generateTalkingHead(
   });
 
   let attempts = 0;
-  const maxAttempts = 120;
+  const maxAttempts = 40;
+  let delay = 1000;
 
   while (
     prediction.status !== 'succeeded' &&
     prediction.status !== 'failed' &&
     attempts < maxAttempts
   ) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+    await new Promise(resolve => setTimeout(resolve, delay));
     prediction = await getPrediction(apiKey, prediction.id);
     attempts++;
+    delay = Math.min(delay * 1.3, 5000);
   }
 
   if (prediction.status === 'failed') {
