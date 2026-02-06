@@ -37,7 +37,7 @@ export class ConversationOrchestrator {
 
   async getNextResponse(
     onTyping: (participant: LocalAIParticipant) => void,
-    onMessage: (participant: LocalAIParticipant, content: string) => void,
+    onMessage: (participant: LocalAIParticipant, content: string) => Promise<void>,
     onError: (participant: LocalAIParticipant, error: string) => void
   ): Promise<void> {
     if (!this.isRunning) {
@@ -61,7 +61,7 @@ export class ConversationOrchestrator {
       });
 
       if (this.isRunning) {
-        onMessage(nextParticipant, response);
+        await onMessage(nextParticipant, response);
       }
     } catch (error: any) {
       onError(nextParticipant, error.message || 'An error occurred');

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../components/Toast';
 import { VoiceSynthesizer } from '../lib/voice-synthesis';
@@ -26,7 +26,6 @@ export function useConversation() {
   const [typingParticipant, setTypingParticipant] = useState<LocalAIParticipant | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [currentTurn, setCurrentTurn] = useState(0);
-  const [manualNextSpeaker, setManualNextSpeaker] = useState<string | null>(null);
   const [awaitingManualSelection, setAwaitingManualSelection] = useState(false);
 
   const synthesizerRef = useRef(new VoiceSynthesizer());
@@ -34,16 +33,20 @@ export function useConversation() {
   const messagesRef = useRef<Message[]>([]);
   const isPausedRef = useRef(false);
   const currentTurnRef = useRef(0);
+  const settingsRef = useRef(conversationSettings);
+  const participantsRef = useRef(participants);
+  const loopRef = useRef<() => Promise<void>>();
 
-  const syncMessages = useCallback((msgs: Message[]) => {
-    messagesRef.current = msgs;
-    if (orchestratorRef.current) {
-      orchestratorRef.current.setMessages(msgs);
-    }
-  }, []);
+  useEffect(() => {
+    settingsRef.current = conversationSettings;
+  }, [conversationSettings]);
+
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
 
   const speakContent = useCallback(async (content: string, participant: LocalAIParticipant) => {
-    if (!conversationSettings.autoPlayVoice) {
+    if (!settingsRef.current.autoPlayVoice) {
       await new Promise(resolve => setTimeout(resolve, 1500));
       return;
     }
@@ -56,7 +59,7 @@ export function useConversation() {
     } catch {
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
-  }, [conversationSettings.autoPlayVoice]);
+  }, []);
 
   const handleTalkingHead = useCallback(async (
     participant: LocalAIParticipant,
@@ -93,163 +96,184 @@ export function useConversation() {
     }
   }, [updateMessage, speakContent]);
 
-  const continueConversation = useCallback(async () => {
-    if (!orchestratorRef.current) return;
+  const processResponse = useCallback(async (participant: LocalAIParticipant, content: string) => {
+    const settings = settingsRef.current;
+    const avatarImageUrl = participant.avatarUrl || participant.characterPersona?.imageUrl;
 
-    if (conversationSettings.turnMode === 'manual') {
+    const newMessage: Message = {
+      id: crypto.randomUUID(),
+      conversationId: 'local',
+      participantId: participant.id,
+      senderType: 'ai',
+      content,
+      turnNumber: currentTurnRef.current,
+      createdAt: new Date().toISOString(),
+      videoStatus: (settings.enableTalkingHeads && avatarImageUrl) ? 'generating' : undefined,
+    };
+
+    messagesRef.current = [...messagesRef.current, newMessage];
+    if (orchestratorRef.current) {
+      orchestratorRef.current.setMessages(messagesRef.current);
+    }
+    addMessage(newMessage);
+    updateParticipant(participant.id, { messageCount: participant.messageCount + 1 });
+
+    if (settings.enableTalkingHeads && avatarImageUrl) {
+      await handleTalkingHead(participant, content, newMessage.id, avatarImageUrl);
+    } else {
+      await speakContent(content, participant);
+    }
+  }, [addMessage, updateParticipant, handleTalkingHead, speakContent]);
+
+  const runConversationLoop = useCallback(async () => {
+    const orchestrator = orchestratorRef.current;
+    if (!orchestrator) return;
+
+    const settings = settingsRef.current;
+
+    if (settings.turnMode === 'manual') {
       setAwaitingManualSelection(true);
       return;
     }
 
-    await orchestratorRef.current.getNextResponse(
-      (participant) => setTypingParticipant(participant),
-      async (participant, content) => {
-        setTypingParticipant(null);
+    try {
+      await orchestrator.getNextResponse(
+        (participant) => setTypingParticipant(participant),
+        async (participant, content) => {
+          setTypingParticipant(null);
+          await processResponse(participant, content);
 
-        const avatarImageUrl = participant.avatarUrl || participant.characterPersona?.imageUrl;
+          const newTurn = currentTurnRef.current + 1;
+          currentTurnRef.current = newTurn;
+          setCurrentTurn(newTurn);
 
-        const newMessage: Message = {
-          id: crypto.randomUUID(),
-          conversationId: 'local',
-          participantId: participant.id,
-          senderType: 'ai',
-          content,
-          turnNumber: currentTurnRef.current,
-          createdAt: new Date().toISOString(),
-          videoStatus: (conversationSettings.enableTalkingHeads && avatarImageUrl) ? 'generating' : undefined,
-        };
+          const maxTurns = settingsRef.current.maxTurns;
+          const shouldContinue = maxTurns === 0 || newTurn < maxTurns;
 
-        messagesRef.current = [...messagesRef.current, newMessage];
-        syncMessages(messagesRef.current);
-        addMessage(newMessage);
-        updateParticipant(participant.id, { messageCount: participant.messageCount + 1 });
+          if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
+            setTimeout(() => {
+              if (orchestratorRef.current && !isPausedRef.current) {
+                loopRef.current?.();
+              }
+            }, 100);
+          } else if (!shouldContinue) {
+            setIsConversationActive(false);
+            setIsPaused(false);
+            isPausedRef.current = false;
+            setTypingParticipant(null);
+            setAwaitingManualSelection(false);
+            orchestratorRef.current?.stop();
+            orchestratorRef.current = null;
+          }
+        },
+        (participant, error) => {
+          setTypingParticipant(null);
+          console.error(`AI error from ${participant.customName || participant.defaultName}:`, error);
 
-        if (conversationSettings.enableTalkingHeads && avatarImageUrl) {
-          await handleTalkingHead(participant, content, newMessage.id, avatarImageUrl);
-        } else {
-          await speakContent(content, participant);
+          const errorMessage: Message = {
+            id: crypto.randomUUID(),
+            conversationId: 'local',
+            participantId: participant.id,
+            senderType: 'ai',
+            content: `[Error: ${error}]`,
+            turnNumber: currentTurnRef.current,
+            createdAt: new Date().toISOString(),
+          };
+
+          messagesRef.current = [...messagesRef.current, errorMessage];
+          if (orchestratorRef.current) {
+            orchestratorRef.current.setMessages(messagesRef.current);
+          }
+          addMessage(errorMessage);
+
+          const newTurn = currentTurnRef.current + 1;
+          currentTurnRef.current = newTurn;
+          setCurrentTurn(newTurn);
+
+          const maxTurns = settingsRef.current.maxTurns;
+          const shouldContinue = maxTurns === 0 || newTurn < maxTurns;
+
+          if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
+            setTimeout(() => {
+              if (orchestratorRef.current && !isPausedRef.current) {
+                loopRef.current?.();
+              }
+            }, 2000);
+          }
         }
+      );
+    } catch (error) {
+      console.error('Conversation loop error:', error);
+      setTypingParticipant(null);
+      toast.error('An unexpected error occurred. The conversation has been paused.');
+    }
+  }, [processResponse, addMessage, setIsConversationActive, toast]);
 
-        const newTurn = currentTurnRef.current + 1;
-        currentTurnRef.current = newTurn;
-        setCurrentTurn(newTurn);
-
-        const shouldContinue = conversationSettings.maxTurns === 0 || newTurn < conversationSettings.maxTurns;
-
-        if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
-          setTimeout(() => {
-            if (orchestratorRef.current && !isPausedRef.current) {
-              continueConversation();
-            }
-          }, 100);
-        } else if (!shouldContinue) {
-          handleStop();
-        }
-      },
-      (participant, error) => {
-        setTypingParticipant(null);
-        const errorMessage: Message = {
-          id: crypto.randomUUID(),
-          conversationId: 'local',
-          participantId: participant.id,
-          senderType: 'ai',
-          content: `[Error: ${error}]`,
-          turnNumber: currentTurnRef.current,
-          createdAt: new Date().toISOString(),
-        };
-
-        messagesRef.current = [...messagesRef.current, errorMessage];
-        syncMessages(messagesRef.current);
-        addMessage(errorMessage);
-
-        const newTurn = currentTurnRef.current + 1;
-        currentTurnRef.current = newTurn;
-        setCurrentTurn(newTurn);
-
-        const shouldContinue = conversationSettings.maxTurns === 0 || newTurn < conversationSettings.maxTurns;
-
-        if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
-          setTimeout(() => {
-            if (orchestratorRef.current && !isPausedRef.current) {
-              continueConversation();
-            }
-          }, 2000);
-        }
-      }
-    );
-  }, [conversationSettings, addMessage, updateParticipant, syncMessages, handleTalkingHead, speakContent, updateMessage]);
+  useEffect(() => {
+    loopRef.current = runConversationLoop;
+  }, [runConversationLoop]);
 
   const selectManualSpeaker = useCallback(async (participantId: string) => {
     if (!orchestratorRef.current) return;
     setAwaitingManualSelection(false);
-    setManualNextSpeaker(null);
 
-    const participant = participants.find(p => p.id === participantId);
+    const participant = participantsRef.current.find(p => p.id === participantId);
     if (!participant) return;
 
     orchestratorRef.current.setManualNextSpeaker(participantId);
 
-    await orchestratorRef.current.getNextResponse(
-      () => setTypingParticipant(participant),
-      async (_participant, content) => {
-        setTypingParticipant(null);
+    try {
+      await orchestratorRef.current.getNextResponse(
+        () => setTypingParticipant(participant),
+        async (_participant, content) => {
+          setTypingParticipant(null);
+          await processResponse(_participant, content);
 
-        const avatarImageUrl = _participant.avatarUrl || _participant.characterPersona?.imageUrl;
+          const newTurn = currentTurnRef.current + 1;
+          currentTurnRef.current = newTurn;
+          setCurrentTurn(newTurn);
 
-        const newMessage: Message = {
-          id: crypto.randomUUID(),
-          conversationId: 'local',
-          participantId: _participant.id,
-          senderType: 'ai',
-          content,
-          turnNumber: currentTurnRef.current,
-          createdAt: new Date().toISOString(),
-          videoStatus: (conversationSettings.enableTalkingHeads && avatarImageUrl) ? 'generating' : undefined,
-        };
+          const maxTurns = settingsRef.current.maxTurns;
+          const shouldContinue = maxTurns === 0 || newTurn < maxTurns;
 
-        messagesRef.current = [...messagesRef.current, newMessage];
-        syncMessages(messagesRef.current);
-        addMessage(newMessage);
-        updateParticipant(_participant.id, { messageCount: _participant.messageCount + 1 });
-
-        if (conversationSettings.enableTalkingHeads && avatarImageUrl) {
-          await handleTalkingHead(_participant, content, newMessage.id, avatarImageUrl);
-        } else {
-          await speakContent(content, _participant);
-        }
-
-        const newTurn = currentTurnRef.current + 1;
-        currentTurnRef.current = newTurn;
-        setCurrentTurn(newTurn);
-
-        const shouldContinue = conversationSettings.maxTurns === 0 || newTurn < conversationSettings.maxTurns;
-
-        if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
-          if (conversationSettings.turnMode === 'manual') {
-            setAwaitingManualSelection(true);
-          } else {
-            setTimeout(() => continueConversation(), 100);
+          if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
+            if (settingsRef.current.turnMode === 'manual') {
+              setAwaitingManualSelection(true);
+            } else {
+              setTimeout(() => loopRef.current?.(), 100);
+            }
+          } else if (!shouldContinue) {
+            setIsConversationActive(false);
+            setIsPaused(false);
+            isPausedRef.current = false;
+            setTypingParticipant(null);
+            setAwaitingManualSelection(false);
+            orchestratorRef.current?.stop();
+            orchestratorRef.current = null;
           }
-        } else if (!shouldContinue) {
-          handleStop();
+        },
+        (p, error) => {
+          setTypingParticipant(null);
+          toast.error(`${p.customName || p.defaultName} encountered an error: ${error}`);
+          setAwaitingManualSelection(true);
         }
-      },
-      (p, error) => {
-        setTypingParticipant(null);
-        toast.error(`${p.customName || p.defaultName} encountered an error: ${error}`);
-        setAwaitingManualSelection(true);
-      }
-    );
-  }, [participants, conversationSettings, addMessage, updateParticipant, syncMessages, handleTalkingHead, speakContent, continueConversation, toast, updateMessage]);
+      );
+    } catch (error) {
+      console.error('Manual speaker error:', error);
+      setTypingParticipant(null);
+      toast.error('An error occurred. Please select a speaker again.');
+      setAwaitingManualSelection(true);
+    }
+  }, [processResponse, setIsConversationActive, toast]);
 
   const handleStart = useCallback(async (topic: string) => {
-    if (participants.length === 0) {
+    if (participantsRef.current.length === 0) {
       toast.warning('Please configure at least one AI participant first.');
       setShowApiConfig(true);
       return;
     }
 
-    const activeParticipants = participants.filter(p => p.isActive);
+    const activeParticipants = participantsRef.current.filter(p => p.isActive);
     if (activeParticipants.length === 0) {
       toast.warning('Please activate at least one AI participant.');
       return;
@@ -266,32 +290,34 @@ export function useConversation() {
 
     if (isConversationActive) {
       messagesRef.current = [...messagesRef.current, topicMessage];
-      syncMessages(messagesRef.current);
+      if (orchestratorRef.current) {
+        orchestratorRef.current.setMessages(messagesRef.current);
+      }
       addMessage(topicMessage);
 
       if (isPaused) {
         setIsPaused(false);
         isPausedRef.current = false;
         orchestratorRef.current?.start();
-        setTimeout(() => continueConversation(), 1000);
+        setTimeout(() => loopRef.current?.(), 1000);
       }
       return;
     }
 
     clearMessages();
     messagesRef.current = [];
-    currentTurnRef.current = 1;
-    setCurrentTurn(1);
+    currentTurnRef.current = 0;
+    setCurrentTurn(0);
     setIsConversationActive(true);
     setIsPaused(false);
     isPausedRef.current = false;
     setAwaitingManualSelection(false);
 
     orchestratorRef.current = new ConversationOrchestrator(
-      participants,
-      conversationSettings.turnMode,
-      conversationSettings.responseLength,
-      conversationSettings.conversationStyle
+      participantsRef.current,
+      settingsRef.current.turnMode,
+      settingsRef.current.responseLength,
+      settingsRef.current.conversationStyle
     );
 
     messagesRef.current = [topicMessage];
@@ -299,8 +325,8 @@ export function useConversation() {
     orchestratorRef.current.start();
     addMessage(topicMessage);
 
-    setTimeout(() => continueConversation(), 1000);
-  }, [participants, conversationSettings, isConversationActive, isPaused, clearMessages, addMessage, setIsConversationActive, setShowApiConfig, syncMessages, continueConversation, toast]);
+    setTimeout(() => loopRef.current?.(), 1000);
+  }, [isConversationActive, isPaused, clearMessages, addMessage, setIsConversationActive, setShowApiConfig, toast]);
 
   const handlePause = useCallback(() => {
     setIsPaused(true);
@@ -312,8 +338,8 @@ export function useConversation() {
     setIsPaused(false);
     isPausedRef.current = false;
     orchestratorRef.current?.start();
-    setTimeout(() => continueConversation(), 1000);
-  }, [continueConversation]);
+    setTimeout(() => loopRef.current?.(), 1000);
+  }, []);
 
   const handleStop = useCallback(() => {
     setIsConversationActive(false);
@@ -359,9 +385,7 @@ export function useConversation() {
     isPaused,
     currentTurn,
     awaitingManualSelection,
-    manualNextSpeaker,
     synthesizer: synthesizerRef.current,
-    messagesEndRef: useRef<HTMLDivElement>(null),
 
     handleStart,
     handlePause,
@@ -371,6 +395,5 @@ export function useConversation() {
     handleDownloadTranscript,
     handleDownloadSummary,
     selectManualSpeaker,
-    setManualNextSpeaker,
   };
 }
