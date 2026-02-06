@@ -78,7 +78,7 @@ export function SettingsModal() {
 
             <div>
               <label className="block text-sm font-medium text-blue-200 mb-3">
-                Maximum Turns
+                Maximum Rounds
               </label>
               <input
                 type="number"
@@ -88,7 +88,7 @@ export function SettingsModal() {
                 onChange={(e) => updateSettings({ maxTurns: parseInt(e.target.value) || 0 })}
                 className="w-full px-4 py-2 bg-gray-800/50 border border-blue-500/30 rounded-lg text-blue-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
-              <p className="text-sm text-blue-300/60 mt-1">0 = unlimited</p>
+              <p className="text-sm text-blue-300/60 mt-1">0 = unlimited. Each round, every AI speaks once.</p>
             </div>
           </div>
 

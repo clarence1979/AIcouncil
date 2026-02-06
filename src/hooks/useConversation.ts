@@ -32,7 +32,8 @@ export function useConversation() {
   const orchestratorRef = useRef<ConversationOrchestrator | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const isPausedRef = useRef(false);
-  const currentTurnRef = useRef(0);
+  const responseCountRef = useRef(0);
+  const activeParticipantCountRef = useRef(1);
   const settingsRef = useRef(conversationSettings);
   const participantsRef = useRef(participants);
   const loopRef = useRef<() => Promise<void>>();
@@ -106,7 +107,7 @@ export function useConversation() {
       participantId: participant.id,
       senderType: 'ai',
       content,
-      turnNumber: currentTurnRef.current,
+      turnNumber: responseCountRef.current,
       createdAt: new Date().toISOString(),
       videoStatus: (settings.enableTalkingHeads && avatarImageUrl) ? 'generating' : undefined,
     };
@@ -143,12 +144,13 @@ export function useConversation() {
           setTypingParticipant(null);
           await processResponse(participant, content);
 
-          const newTurn = currentTurnRef.current + 1;
-          currentTurnRef.current = newTurn;
-          setCurrentTurn(newTurn);
+          responseCountRef.current += 1;
+          const round = Math.floor(responseCountRef.current / activeParticipantCountRef.current) + 1;
+          setCurrentTurn(round);
 
           const maxTurns = settingsRef.current.maxTurns;
-          const shouldContinue = maxTurns === 0 || newTurn < maxTurns;
+          const maxResponses = maxTurns * activeParticipantCountRef.current;
+          const shouldContinue = maxTurns === 0 || responseCountRef.current < maxResponses;
 
           if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
             setTimeout(() => {
@@ -176,7 +178,7 @@ export function useConversation() {
             participantId: participant.id,
             senderType: 'ai',
             content: `[Error: ${error}]`,
-            turnNumber: currentTurnRef.current,
+            turnNumber: responseCountRef.current,
             createdAt: new Date().toISOString(),
           };
 
@@ -186,12 +188,13 @@ export function useConversation() {
           }
           addMessage(errorMessage);
 
-          const newTurn = currentTurnRef.current + 1;
-          currentTurnRef.current = newTurn;
-          setCurrentTurn(newTurn);
+          responseCountRef.current += 1;
+          const round = Math.floor(responseCountRef.current / activeParticipantCountRef.current) + 1;
+          setCurrentTurn(round);
 
           const maxTurns = settingsRef.current.maxTurns;
-          const shouldContinue = maxTurns === 0 || newTurn < maxTurns;
+          const maxResponses = maxTurns * activeParticipantCountRef.current;
+          const shouldContinue = maxTurns === 0 || responseCountRef.current < maxResponses;
 
           if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
             setTimeout(() => {
@@ -229,12 +232,13 @@ export function useConversation() {
           setTypingParticipant(null);
           await processResponse(_participant, content);
 
-          const newTurn = currentTurnRef.current + 1;
-          currentTurnRef.current = newTurn;
-          setCurrentTurn(newTurn);
+          responseCountRef.current += 1;
+          const round = Math.floor(responseCountRef.current / activeParticipantCountRef.current) + 1;
+          setCurrentTurn(round);
 
           const maxTurns = settingsRef.current.maxTurns;
-          const shouldContinue = maxTurns === 0 || newTurn < maxTurns;
+          const maxResponses = maxTurns * activeParticipantCountRef.current;
+          const shouldContinue = maxTurns === 0 || responseCountRef.current < maxResponses;
 
           if (shouldContinue && orchestratorRef.current && !isPausedRef.current) {
             if (settingsRef.current.turnMode === 'manual') {
@@ -306,8 +310,9 @@ export function useConversation() {
 
     clearMessages();
     messagesRef.current = [];
-    currentTurnRef.current = 0;
-    setCurrentTurn(0);
+    responseCountRef.current = 0;
+    activeParticipantCountRef.current = activeParticipants.length;
+    setCurrentTurn(1);
     setIsConversationActive(true);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -354,7 +359,7 @@ export function useConversation() {
   const handleClear = useCallback(() => {
     clearMessages();
     messagesRef.current = [];
-    currentTurnRef.current = 0;
+    responseCountRef.current = 0;
     setCurrentTurn(0);
     setIsConversationActive(false);
     setIsPaused(false);

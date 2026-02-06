@@ -67,7 +67,7 @@ export function ConversationControls({
 
               <div className="ml-2 px-3 py-1.5 bg-gray-800/60 backdrop-blur-sm rounded-lg shadow-lg border border-blue-500/20">
                 <span className="text-xs font-medium text-blue-100">
-                  Turn {currentTurn}
+                  Round {currentTurn}
                   {maxTurns > 0 && ` of ${maxTurns}`}
                 </span>
               </div>
