@@ -24,13 +24,16 @@ export abstract class AIClient {
   ): Promise<string>;
 }
 
+function getSupabaseUrl(): string {
+  return localStorage.getItem('VITE_SUPABASE_URL') || import.meta.env.VITE_SUPABASE_URL || '';
+}
+
 export class OpenAIClient extends AIClient {
   private proxyUrl: string;
 
   constructor(apiKey: string) {
     super(apiKey);
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    this.proxyUrl = `${supabaseUrl}/functions/v1/openai-proxy`;
+    this.proxyUrl = `${getSupabaseUrl()}/functions/v1/openai-proxy`;
   }
 
   async testConnection(): Promise<boolean> {
@@ -94,8 +97,7 @@ export class AnthropicClient extends AIClient {
 
   constructor(apiKey: string) {
     super(apiKey);
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    this.proxyUrl = `${supabaseUrl}/functions/v1/anthropic-proxy`;
+    this.proxyUrl = `${getSupabaseUrl()}/functions/v1/anthropic-proxy`;
   }
 
   async testConnection(): Promise<boolean> {
@@ -163,8 +165,7 @@ export class GeminiClient extends AIClient {
 
   constructor(apiKey: string) {
     super(apiKey);
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    this.proxyUrl = `${supabaseUrl}/functions/v1/gemini-proxy`;
+    this.proxyUrl = `${getSupabaseUrl()}/functions/v1/gemini-proxy`;
   }
 
   async testConnection(): Promise<boolean> {

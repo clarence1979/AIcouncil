@@ -6,17 +6,15 @@ export interface TTSOptions {
 }
 
 async function getOpenAIKey(): Promise<string> {
+  const storedKey = localStorage.getItem('VITE_OPENAI_API_KEY');
+  if (storedKey) return storedKey;
+
   const participants = JSON.parse(localStorage.getItem('ai-participants') || '[]');
   const openaiParticipant = participants.find((p: any) => p.provider === 'openai');
-
-  if (openaiParticipant?.apiKey) {
-    return openaiParticipant.apiKey;
-  }
+  if (openaiParticipant?.apiKey) return openaiParticipant.apiKey;
 
   const envKey = import.meta.env.VITE_OPENAI_API_KEY;
-  if (envKey) {
-    return envKey;
-  }
+  if (envKey) return envKey;
 
   throw new Error('OpenAI API key required for voice generation. Please configure an OpenAI participant to enable talking head audio.');
 }

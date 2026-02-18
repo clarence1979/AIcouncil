@@ -11,9 +11,65 @@ import { TopicInput } from './components/TopicInput';
 import { ConversationControls } from './components/ConversationControls';
 import { ManualSpeakerSelector } from './components/ManualSpeakerSelector';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { StandaloneLoginForm } from './components/StandaloneLoginForm';
+import { attemptAutoLogin, isInIframe } from './utils/auto-login';
 import type { LocalAIParticipant, Avatar } from './types';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authUsername, setAuthUsername] = useState('');
+
+  useEffect(() => {
+    async function init() {
+      if (isInIframe()) {
+        const result = await attemptAutoLogin();
+        if (result.authenticated) {
+          setIsAuthenticated(true);
+          setAuthUsername(result.username || '');
+        }
+      } else {
+        const hasAnyKey =
+          localStorage.getItem('VITE_OPENAI_API_KEY') ||
+          localStorage.getItem('VITE_CLAUDE_API_KEY') ||
+          localStorage.getItem('VITE_GEMINI_API_KEY');
+        if (hasAnyKey) {
+          setIsAuthenticated(true);
+          setAuthUsername(localStorage.getItem('auth-username') || 'User');
+        }
+      }
+      setIsAuthLoading(false);
+    }
+    init();
+  }, []);
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-blue-300 text-sm">Connecting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <StandaloneLoginForm
+        onLogin={(username) => {
+          localStorage.setItem('auth-username', username);
+          setIsAuthenticated(true);
+          setAuthUsername(username);
+        }}
+      />
+    );
+  }
+
+  return <MainApp username={authUsername} />;
+}
+
+function MainApp({ username }: { username: string }) {
   const {
     participants,
     messages,
@@ -91,7 +147,12 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                {username && (
+                  <span className="text-sm text-blue-300/70 hidden sm:block">
+                    {username}
+                  </span>
+                )}
                 <button
                   onClick={() => setShowSettings(true)}
                   className="p-2 text-blue-300 hover:text-blue-100 hover:bg-blue-900/50 rounded-lg transition-colors"

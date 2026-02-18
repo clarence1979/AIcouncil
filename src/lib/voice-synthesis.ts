@@ -10,10 +10,12 @@ export class VoiceSynthesizer {
   private isPlaying: boolean = false;
 
   private getOpenAIApiKey(): string | null {
-    const participants = localStorage.getItem('ai-participants');
-    if (!participants) return null;
+    const stored = localStorage.getItem('VITE_OPENAI_API_KEY');
+    if (stored) return stored;
 
     try {
+      const participants = localStorage.getItem('ai-participants');
+      if (!participants) return null;
       const parsed = JSON.parse(participants);
       const openaiParticipant = parsed.find((p: any) => p.provider === 'openai');
       return openaiParticipant?.apiKey || null;
