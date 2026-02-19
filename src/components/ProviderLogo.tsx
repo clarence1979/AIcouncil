@@ -51,14 +51,14 @@ export function ProviderLogo({ provider, size = 20, className = '' }: ProviderLo
         className={className}
       >
         <defs>
-          <linearGradient id="gemini-grad-a" x1="0.573" y1="0.057" x2="0.426" y2="0.943" gradientUnits="objectBoundingBox">
+          <linearGradient id={`gemini-grad-${size}`} x1="0.573" y1="0.057" x2="0.426" y2="0.943" gradientUnits="objectBoundingBox">
             <stop offset="0" stopColor="#1aa4f5" />
             <stop offset="1" stopColor="#1a6bf5" />
           </linearGradient>
         </defs>
         <path
           d="M96 180c-4.4-16.7-9.4-31.8-16.4-44.8C71.6 121.2 61 109 47 97.6 33 86.2 18.8 78.8 0 75.4c18.4-2 32.8-6.6 47.4-17 14.6-10.4 25-25.4 35.4-42.4C90.2 8.6 92.8 0 96 0c3.2 0 5.8 8.6 13.2 16C120 32 130.4 47 145 57.4c14.6 10.4 29 15 47.4 17-18.8 3.4-33 10.8-47 22.2-14 11.4-24.6 23.6-32.6 37.6-7 13-12 28.1-16.4 44.8H96z"
-          fill="url(#gemini-grad-a)"
+          fill={`url(#gemini-grad-${size})`}
         />
       </svg>
     );
