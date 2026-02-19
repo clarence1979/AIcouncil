@@ -116,88 +116,59 @@ export function ParticipantConfigModal({
     setResearchingCharacter(true);
 
     try {
-      const promptText = useCustom && customDescription
-        ? `Research the character "${name.trim()}" with this description: ${customDescription}. ${useCustom && customTraits ? `Include these traits: ${customTraits}` : ''}`
-        : `Research the character "${name.trim()}" and provide detailed information about their personality, traits, speaking style, catchphrases, and mannerisms.`;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      const messages = [
-        {
-          role: 'system',
-          content: `You are a character research assistant. Return a JSON object with this exact structure:
-{
-  "name": "character name",
-  "description": "brief description",
-  "traits": ["trait1", "trait2", "trait3"],
-  "speakingStyle": "description of how they speak",
-  "catchphrases": ["phrase1", "phrase2"],
-  "mannerisms": ["mannerism1", "mannerism2"]
-}`,
-        },
-        {
-          role: 'user',
-          content: promptText,
-        },
-      ];
+      const body: Record<string, unknown> = {
+        characterName: name.trim(),
+        apiKey,
+      };
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      if (useCustom && customDescription) {
+        body.customDescription = customDescription;
+      }
+      if (useCustom && customTraits) {
+        body.customTraits = customTraits.split(',').map((t: string) => t.trim()).filter(Boolean);
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/character-research`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages,
-          response_format: { type: 'json_object' },
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        throw new Error('Character research failed');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Character research failed');
       }
 
-      const data = await response.json();
-      const characterPersona: CharacterPersona = JSON.parse(data.choices[0].message.content);
+      const result = await response.json();
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      const characterPersona: CharacterPersona = {
+        name: result.name,
+        description: result.description,
+        traits: result.traits,
+        speakingStyle: result.speakingStyle,
+        catchphrases: result.catchphrases,
+        mannerisms: result.mannerisms,
+        imageUrl: result.imageUrl,
+        voiceCharacteristics: result.voiceCharacteristics,
+      };
+
       setTempCharacterPersona(characterPersona);
-
-      try {
-        const imagePrompt = `A professional portrait photo of ${name.trim()}, ${characterPersona.description}. High quality, clear face, neutral background, photorealistic.`;
-
-        const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'dall-e-3',
-            prompt: imagePrompt,
-            n: 1,
-            size: '1024x1024',
-            quality: 'standard',
-          }),
-        });
-
-        if (imageResponse.ok) {
-          const imageData = await imageResponse.json();
-          const generatedUrl = imageData.data[0].url;
-          setTempAvatarUrl(generatedUrl);
-          setTempCharacterPersona({
-            ...characterPersona,
-            imageUrl: generatedUrl
-          });
-        } else {
-          const errorData = await imageResponse.json();
-          console.error('Avatar generation failed:', errorData);
-          toast.error(`Avatar generation failed: ${errorData.error?.message || 'Unknown error'}`);
-        }
-      } catch (imageError) {
-        console.error('Avatar generation error:', imageError);
-        toast.error(`Avatar generation error: ${imageError instanceof Error ? imageError.message : 'Unknown error'}`);
+      if (result.imageUrl) {
+        setTempAvatarUrl(result.imageUrl);
       }
     } catch (error) {
       console.error('Character research error:', error);
-      toast.error('Failed to research character. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Failed to research character. Please try again.');
     } finally {
       setResearchingCharacter(false);
     }
@@ -216,17 +187,20 @@ export function ParticipantConfigModal({
         return;
       }
 
-      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/openai-tts`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'tts-1',
-          input: `Hello! I am ${participant.customName || participant.defaultName}. This is how I sound when speaking in conversations.`,
+          text: `Hello! I am ${participant.customName || participant.defaultName}. This is how I sound when speaking in conversations.`,
           voice: voiceId,
           speed: 1.0,
+          apiKey,
         }),
       });
 
