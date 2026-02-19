@@ -288,7 +288,7 @@ export function useConversation() {
       conversationId: 'local',
       senderType: 'user',
       content: topic,
-      turnNumber: isConversationActive ? currentTurnRef.current : 0,
+      turnNumber: isConversationActive ? currentTurn : 0,
       createdAt: new Date().toISOString(),
     };
 

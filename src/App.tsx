@@ -1,17 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Plus, HelpCircle } from 'lucide-react';
+import { Settings, HelpCircle } from 'lucide-react';
 import { useApp } from './context/AppContext';
 import { useConversation } from './hooks/useConversation';
-import { ApiConfigModal } from './components/ApiConfigModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ParticipantConfigModal } from './components/ParticipantConfigModal';
-import { ParticipantCard } from './components/ParticipantCard';
 import { MessageBubble, TypingIndicator } from './components/MessageBubble';
 import { TopicInput } from './components/TopicInput';
 import { ConversationControls } from './components/ConversationControls';
 import { ManualSpeakerSelector } from './components/ManualSpeakerSelector';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { StandaloneLoginForm } from './components/StandaloneLoginForm';
+import { ParticipantManager, ParticipantManagerEmpty } from './components/ParticipantManager';
 import { attemptAutoLogin, isInIframe } from './utils/auto-login';
 import type { LocalAIParticipant, Avatar } from './types';
 
@@ -76,10 +75,8 @@ function MainApp({ username }: { username: string }) {
     conversationSettings,
     isConversationActive,
     showSettings,
-    showApiConfig,
     updateParticipant,
     setShowSettings,
-    setShowApiConfig,
   } = useApp();
 
   const {
@@ -161,13 +158,6 @@ function MainApp({ username }: { username: string }) {
                   <Settings size={20} />
                 </button>
                 <button
-                  onClick={() => setShowApiConfig(true)}
-                  className="p-2 text-blue-300 hover:text-blue-100 hover:bg-blue-900/50 rounded-lg transition-colors"
-                  title="Configure AI Participants"
-                >
-                  <Plus size={20} />
-                </button>
-                <button
                   className="p-2 text-blue-300 hover:text-blue-100 hover:bg-blue-900/50 rounded-lg transition-colors"
                   title="Help"
                 >
@@ -178,49 +168,7 @@ function MainApp({ username }: { username: string }) {
           </div>
         </header>
 
-        {activeParticipants.length > 0 && (
-          <div className="bg-gray-900/70 backdrop-blur-sm border-b border-blue-500/20 shadow-lg">
-            <div className="max-w-7xl mx-auto px-6 py-3">
-              <div className="flex items-center gap-3 mb-3">
-                <h2 className="text-sm font-semibold text-blue-300 uppercase tracking-wide">
-                  Active Participants ({activeParticipants.length})
-                </h2>
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-2">
-                  {activeParticipants.map((participant) => (
-                    <ParticipantCard
-                      key={participant.id}
-                      participant={participant}
-                      onConfigure={() => handleConfigure(participant.id)}
-                      onRemove={() => updateParticipant(participant.id, { isActive: false })}
-                    />
-                  ))}
-                  <button
-                    onClick={() => setShowApiConfig(true)}
-                    className="border-2 border-dashed border-blue-500/30 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2 text-blue-300 hover:text-blue-100 font-medium text-sm"
-                  >
-                    <Plus size={18} />
-                    Add AI
-                  </button>
-                </div>
-                {messages.length === 0 && (
-                  <div className="flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-5xl mb-4">💭</div>
-                      <h2 className="text-xl font-bold text-blue-100 mb-3 drop-shadow-lg">
-                        Ready to Start
-                      </h2>
-                      <p className="text-base text-blue-200/90 drop-shadow">
-                        Your AI council is assembled. What topic would you like them to discuss?
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <ParticipantManager onConfigure={handleConfigure} />
 
         <ConversationControls
           isActive={isConversationActive && !isPaused}
@@ -244,18 +192,13 @@ function MainApp({ username }: { username: string }) {
                 <h2 className="text-2xl font-bold text-blue-100 mb-3 drop-shadow-lg">
                   Welcome to AI Council
                 </h2>
-                <p className="text-base text-blue-200/90 mb-6 max-w-2xl mx-auto drop-shadow">
+                <p className="text-base text-blue-200/90 mb-8 max-w-2xl mx-auto drop-shadow">
                   A sophisticated platform where multiple AI models engage in collaborative
-                  conversations. Configure your AI participants and start a thought-provoking
-                  discussion.
+                  conversations. Add your first AI participant to get started.
                 </p>
-                <button
-                  onClick={() => setShowApiConfig(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all flex items-center gap-2 mx-auto"
-                >
-                  <Plus size={20} />
-                  Configure Your First AI
-                </button>
+                <div className="max-w-xs mx-auto">
+                  <ParticipantManagerEmpty />
+                </div>
               </div>
             ) : messages.length > 0 ? (
               <>
@@ -286,7 +229,6 @@ function MainApp({ username }: { username: string }) {
           isConversationActive={isConversationActive}
         />
 
-        {showApiConfig && <ApiConfigModal />}
         {showSettings && <SettingsModal />}
         {configuringParticipant && (
           <ParticipantConfigModal
