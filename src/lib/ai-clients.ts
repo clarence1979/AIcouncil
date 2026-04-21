@@ -74,9 +74,7 @@ export class OpenAIClient extends AIClient {
   ): Promise<string> {
     const response = await fetch(this.proxyUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: proxyHeaders(),
       body: JSON.stringify({
         action: 'chat',
         apiKey: this.apiKey,
@@ -139,9 +137,7 @@ export class AnthropicClient extends AIClient {
 
     const response = await fetch(this.proxyUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: proxyHeaders(),
       body: JSON.stringify({
         action: 'chat',
         apiKey: this.apiKey,
@@ -226,9 +222,7 @@ export class GeminiClient extends AIClient {
 
     const response = await fetch(this.proxyUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: proxyHeaders(),
       body: JSON.stringify({
         action: 'chat',
         apiKey: this.apiKey,
