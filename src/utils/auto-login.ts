@@ -110,7 +110,7 @@ const REMOTE_SECRETS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOi
 
 export async function fetchRemoteSecrets(): Promise<void> {
   try {
-    const url = `${REMOTE_SECRETS_URL}/rest/v1/secrets?select=key_name,key_value&key_name=in.(CLAUDE_API_KEY,GEMINI_API_KEY,OPENAI_API_KEY)`;
+    const url = `${REMOTE_SECRETS_URL}/rest/v1/secrets?select=key_name,key_value&key_name=in.(CLAUDE_API_KEY,GEMINI_API_KEY,OPENAI_API_KEY,REPLICATE_API_KEY)`;
     const response = await fetch(url, {
       headers: {
         apikey: REMOTE_SECRETS_ANON_KEY,
@@ -126,6 +126,7 @@ export async function fetchRemoteSecrets(): Promise<void> {
       OPENAI_API_KEY: 'VITE_OPENAI_API_KEY',
       CLAUDE_API_KEY: 'VITE_CLAUDE_API_KEY',
       GEMINI_API_KEY: 'VITE_GEMINI_API_KEY',
+      REPLICATE_API_KEY: 'VITE_REPLICATE_API_KEY',
     };
     for (const row of rows) {
       const storageKey = keyToStorage[row.key_name];
