@@ -28,13 +28,10 @@ export default function App() {
           setAuthUsername(result.username || '');
         }
       } else {
-        const hasAnyKey =
-          localStorage.getItem('VITE_OPENAI_API_KEY') ||
-          localStorage.getItem('VITE_CLAUDE_API_KEY') ||
-          localStorage.getItem('VITE_GEMINI_API_KEY');
-        if (hasAnyKey) {
+        const storedUsername = localStorage.getItem('auth-username');
+        if (storedUsername) {
           setIsAuthenticated(true);
-          setAuthUsername(localStorage.getItem('auth-username') || 'User');
+          setAuthUsername(storedUsername);
         }
       }
       setIsAuthLoading(false);
