@@ -1,29 +1,9 @@
-import { X, Eye, EyeOff } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { useToast } from './Toast';
-import { hasReplicateApiKey, setReplicateApiKey } from '../lib/sadtalker-service';
 import type { TurnMode } from '../types';
 
 export function SettingsModal() {
   const { conversationSettings, updateSettings, setShowSettings } = useApp();
-  const toast = useToast();
-  const [replicateKey, setReplicateKey] = useState('');
-  const [showReplicateKey, setShowReplicateKey] = useState(false);
-  const [hasExistingKey, setHasExistingKey] = useState(false);
-
-  useEffect(() => {
-    setHasExistingKey(hasReplicateApiKey());
-  }, []);
-
-  const handleSaveReplicateKey = () => {
-    if (replicateKey.trim()) {
-      setReplicateApiKey(replicateKey.trim());
-      setHasExistingKey(true);
-      setReplicateKey('');
-      toast.success('Replicate API key saved.');
-    }
-  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -163,57 +143,7 @@ export function SettingsModal() {
           </div>
         </div>
 
-        <div className="px-6 pb-6 border-t border-blue-500/20 pt-6">
-          <h3 className="text-lg font-semibold text-blue-100 mb-4">API Configuration</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-blue-200 mb-2">
-                Replicate API Key
-                {hasExistingKey && (
-                  <span className="ml-2 text-xs text-emerald-400 font-normal">Configured</span>
-                )}
-              </label>
-              <p className="text-sm text-blue-300/60 mb-3">
-                Required for talking head videos.{' '}
-                <a
-                  href="https://replicate.com/account/api-tokens"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 underline"
-                >
-                  Get your key
-                </a>
-              </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={showReplicateKey ? 'text' : 'password'}
-                    value={replicateKey}
-                    onChange={(e) => setReplicateKey(e.target.value)}
-                    placeholder={hasExistingKey ? '••••••••••••••••' : 'Enter your Replicate API key'}
-                    className="w-full px-4 py-2 pr-10 bg-gray-800/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-400/40 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowReplicateKey(!showReplicateKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-300"
-                  >
-                    {showReplicateKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                <button
-                  onClick={handleSaveReplicateKey}
-                  disabled={!replicateKey.trim()}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 p-6 border-t border-blue-500/20 sticky bottom-0 bg-gray-900/95 backdrop-blur-md rounded-b-2xl">
+<div className="flex justify-end gap-3 p-6 border-t border-blue-500/20 sticky bottom-0 bg-gray-900/95 backdrop-blur-md rounded-b-2xl">
           <button
             onClick={() => setShowSettings(false)}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-blue-500/20"

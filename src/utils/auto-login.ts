@@ -134,6 +134,10 @@ export async function fetchRemoteSecrets(): Promise<void> {
         localStorage.setItem(storageKey, row.key_value);
       }
     }
+    const replicateRow = rows.find(r => r.key_name === 'REPLICATE_API_KEY');
+    if (replicateRow?.key_value) {
+      localStorage.setItem('replicate_api_key', replicateRow.key_value);
+    }
     console.log('[RemoteSecrets] Loaded API keys for', rows.map(r => r.key_name).join(', '));
   } catch (error) {
     console.warn('[RemoteSecrets] Error fetching secrets:', error);
