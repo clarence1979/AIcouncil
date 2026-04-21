@@ -67,6 +67,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const needsAvatar = !p.avatar;
         const needsPersonality = !p.personality;
 
+        const providerKeyMap: Record<string, string> = {
+          openai: localStorage.getItem('VITE_OPENAI_API_KEY') || '',
+          anthropic: localStorage.getItem('VITE_CLAUDE_API_KEY') || '',
+          google: localStorage.getItem('VITE_GEMINI_API_KEY') || '',
+        };
+        const refreshedApiKey = p.apiKey || providerKeyMap[p.provider] || p.apiKey;
+
         let avatar = p.avatar;
         if (needsAvatar) {
           avatar = (availableAvatars.find(a => !usedAvatars.has(a)) || '🤖') as Avatar;
@@ -85,6 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           personality: needsPersonality ? availablePersonalities[index % availablePersonalities.length] : p.personality,
           avatar,
           voiceName,
+          apiKey: refreshedApiKey,
         };
       });
       setParticipants(migrated);

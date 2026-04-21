@@ -28,6 +28,19 @@ function getSupabaseUrl(): string {
   return localStorage.getItem('VITE_SUPABASE_URL') || import.meta.env.VITE_SUPABASE_URL || '';
 }
 
+function getSupabaseAnonKey(): string {
+  return localStorage.getItem('VITE_SUPABASE_ANON_KEY') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+}
+
+function proxyHeaders(): Record<string, string> {
+  const key = getSupabaseAnonKey();
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${key}`,
+    'apikey': key,
+  };
+}
+
 export class OpenAIClient extends AIClient {
   private proxyUrl: string;
 
@@ -40,9 +53,7 @@ export class OpenAIClient extends AIClient {
     try {
       const response = await fetch(this.proxyUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: proxyHeaders(),
         body: JSON.stringify({
           action: 'test',
           apiKey: this.apiKey,
@@ -104,9 +115,7 @@ export class AnthropicClient extends AIClient {
     try {
       const response = await fetch(this.proxyUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: proxyHeaders(),
         body: JSON.stringify({
           action: 'test',
           apiKey: this.apiKey,
@@ -172,9 +181,7 @@ export class GeminiClient extends AIClient {
     try {
       const response = await fetch(this.proxyUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: proxyHeaders(),
         body: JSON.stringify({
           action: 'test',
           apiKey: this.apiKey,
