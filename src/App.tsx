@@ -11,7 +11,7 @@ import { ManualSpeakerSelector } from './components/ManualSpeakerSelector';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { StandaloneLoginForm } from './components/StandaloneLoginForm';
 import { ParticipantManager, ParticipantManagerEmpty } from './components/ParticipantManager';
-import { attemptAutoLogin, isInIframe } from './utils/auto-login';
+import { attemptAutoLogin, isInIframe, fetchRemoteSecrets } from './utils/auto-login';
 import type { LocalAIParticipant, Avatar } from './types';
 
 export default function App() {
@@ -21,6 +21,7 @@ export default function App() {
 
   useEffect(() => {
     async function init() {
+      await fetchRemoteSecrets();
       if (isInIframe()) {
         const result = await attemptAutoLogin();
         if (result.authenticated) {

@@ -72,7 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           anthropic: localStorage.getItem('VITE_CLAUDE_API_KEY') || '',
           google: localStorage.getItem('VITE_GEMINI_API_KEY') || '',
         };
-        const refreshedApiKey = p.apiKey || providerKeyMap[p.provider] || p.apiKey;
+        const refreshedApiKey = providerKeyMap[p.provider] || p.apiKey;
 
         let avatar = p.avatar;
         if (needsAvatar) {

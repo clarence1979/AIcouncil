@@ -105,6 +105,40 @@ export function getStoredSupabaseUrl(): string {
   return localStorage.getItem('VITE_SUPABASE_URL') || import.meta.env.VITE_SUPABASE_URL || '';
 }
 
+const REMOTE_SECRETS_URL = 'https://qfitpwdrswvnbmzvkoyd.supabase.co';
+const REMOTE_SECRETS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmaXRwd2Ryc3d2bmJtenZrb3lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTc4NTIsImV4cCI6MjA3NjkzMzg1Mn0.owLaj3VrcyR7_LW9xMwOTTFQupbDKlvAlVwYtbidiNE';
+
+export async function fetchRemoteSecrets(): Promise<void> {
+  try {
+    const url = `${REMOTE_SECRETS_URL}/rest/v1/secrets?select=key_name,key_value&key_name=in.(CLAUDE_API_KEY,GEMINI_API_KEY,OPENAI_API_KEY)`;
+    const response = await fetch(url, {
+      headers: {
+        apikey: REMOTE_SECRETS_ANON_KEY,
+        Authorization: `Bearer ${REMOTE_SECRETS_ANON_KEY}`,
+      },
+    });
+    if (!response.ok) {
+      console.warn('[RemoteSecrets] Failed to fetch:', response.status);
+      return;
+    }
+    const rows: Array<{ key_name: string; key_value: string }> = await response.json();
+    const keyToStorage: Record<string, string> = {
+      OPENAI_API_KEY: 'VITE_OPENAI_API_KEY',
+      CLAUDE_API_KEY: 'VITE_CLAUDE_API_KEY',
+      GEMINI_API_KEY: 'VITE_GEMINI_API_KEY',
+    };
+    for (const row of rows) {
+      const storageKey = keyToStorage[row.key_name];
+      if (storageKey && row.key_value) {
+        localStorage.setItem(storageKey, row.key_value);
+      }
+    }
+    console.log('[RemoteSecrets] Loaded API keys for', rows.map(r => r.key_name).join(', '));
+  } catch (error) {
+    console.warn('[RemoteSecrets] Error fetching secrets:', error);
+  }
+}
+
 export function storeCredentialsManually(creds: {
   openaiKey?: string;
   claudeKey?: string;
