@@ -13,6 +13,10 @@
 
   Ollama needs CORS permission:  OLLAMA_ORIGINS=* ollama serve
   For a Pi or another box on the LAN, also set OLLAMA_HOST=0.0.0.0
+
+  If this file is hosted on a domain rather than opened from disk, Chrome 142+
+  also blocks it from reaching localhost until Local network access is allowed
+  for the site. Opening the file locally sidesteps that entirely.
 -->
 <html lang="en-AU">
 <head>
@@ -1512,6 +1516,59 @@ function splitSystem(msgs) {
   while (rest.length && rest[0].role !== 'user') rest.shift();
   return { sys, rest };
 }
+
+/* ==========================================================================
+   WHY A LOCAL REQUEST FAILED
+
+   "Failed to fetch" covers three unrelated problems and each has its own fix,
+   so the app works out which one it is before it says anything.
+
+   Chrome 142 (October 2025) shipped Local Network Access: a page served from
+   the public web may not reach localhost or a private address until the user
+   grants a permission, and a denied permission looks exactly like a server
+   that is not running. Ollama's own CORS rule sits on top of that, so a page
+   hosted on a domain has two gates to get through and a page opened from the
+   machine itself has none.
+   ========================================================================== */
+function addressSpace(host) {
+  host = String(host || '').replace(/^\[|\]$/g, '').toLowerCase();
+  if (host === 'localhost' || /(^|\.)localhost$/.test(host) || host === '::1' || /^127\./.test(host)) return 'loopback';
+  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+      /^169\.254\./.test(host) || /\.local$/.test(host) || /^f[cd][0-9a-f]{2}:/.test(host) || /^fe80:/.test(host)) return 'local';
+  return 'public';
+}
+/* A file:// page and a page on localhost are both "here on this machine". */
+function pageSpace() {
+  if (location.protocol === 'file:') return 'loopback';
+  return addressSpace(location.hostname);
+}
+/* True when the browser, not the server, is the thing standing in the way. */
+function crossesIntoLocalNetwork(url) {
+  let target;
+  try { target = addressSpace(new URL(url, location.href).hostname); } catch { return false; }
+  return target !== 'public' && pageSpace() === 'public';
+}
+function localFetchNote(url) {
+  if (!crossesIntoLocalNetwork(url)) {
+    return 'Check that Ollama is running, and that it was started with OLLAMA_ORIGINS=*.';
+  }
+  return 'This page is served from ' + location.origin + ', and Chrome 142 and later will not let a page from the web reach ' +
+    'your own machine until you allow it. Open the site menu at the left of the address bar, set Local network access ' +
+    '(newer builds call it Apps on device) to Allow, and reload. Opening this file from your own machine avoids the block entirely.';
+}
+function localFetchAdvice(url) {
+  if (!crossesIntoLocalNetwork(url)) {
+    return 'Most likely Ollama is not running, or it is running without <code>OLLAMA_ORIGINS=*</code>. ' +
+      'Check it with <code>curl ' + esc(String(url || '').replace(/\/+$/, '')) + '/api/tags</code>.';
+  }
+  return '<b>Chrome blocked this, not Ollama.</b> This page is served from <code>' + esc(location.origin) + '</code>, and since ' +
+    'Chrome 142 a page from the web cannot reach localhost or a private address until you allow it.' +
+    '<br><b>1 ·</b> Open the site menu at the left of the address bar, find <b>Local network access</b> ' +
+    '(newer builds call it <b>Apps on device</b>) and set it to <b>Allow</b>, then reload. If it already reads Block, that is the whole fault.' +
+    '<br><b>2 ·</b> Ollama has to accept this page as well: start it with <code>OLLAMA_ORIGINS=' + esc(location.origin) + ' ollama serve</code>.' +
+    '<br><b>Or avoid both:</b> save this file and open it from the machine Ollama runs on. Nothing blocks localhost talking to localhost.';
+}
+
 async function readErr(res) {
   let t = '';
   try { t = await res.text(); } catch {}
@@ -1522,8 +1579,17 @@ async function readErr(res) {
 /* ---------------------------------------------------------------- Ollama */
 const OllamaEngine = {
   base() { return (State.ollamaUrl || 'http://localhost:11434').replace(/\/+$/, ''); },
+  /* fetch() rejects with a bare TypeError whether Ollama is down, blocked by
+     CORS or blocked by the browser before it left the page. Say which. */
+  async call(path, init) {
+    try {
+      return await fetch(this.base() + path, init);
+    } catch (e) {
+      throw new Error('Could not reach Ollama at ' + this.base() + '. ' + localFetchNote(this.base()));
+    }
+  },
   async listModels() {
-    const res = await fetch(this.base() + '/api/tags');
+    const res = await this.call('/api/tags');
     if (!res.ok) throw new Error(await readErr(res));
     const data = await res.json();
     return (data.models || []).map(m => ({
@@ -1532,7 +1598,7 @@ const OllamaEngine = {
     }));
   },
   async chat(messages, model, opts) {
-    const res = await fetch(this.base() + '/api/chat', {
+    const res = await this.call('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2494,7 +2560,11 @@ function openEngines() {
       (k === 'ollama'
         ? '<div class="field" style="margin-bottom:8px"><label>Ollama address</label>' +
           '<input type="text" data-ourl value="' + esc(State.ollamaUrl) + '" placeholder="http://localhost:11434">' +
-          '<div class="hint">Ollama refuses requests from other pages unless you allow this origin. Start it with <code>OLLAMA_ORIGINS=* ollama serve</code>, or set that variable in the Ollama app settings.</div></div>'
+          '<div class="hint">Ollama refuses requests from other pages unless you allow this origin. Start it with <code>OLLAMA_ORIGINS=* ollama serve</code>, or set that variable in the Ollama app settings.</div>' +
+          (crossesIntoLocalNetwork(State.ollamaUrl)
+            ? '<div class="note warn" style="margin:9px 0 0">' + localFetchAdvice(State.ollamaUrl) + '</div>'
+            : '') +
+          '</div>'
         : '') +
       (E.needsKey
         ? '<div class="field" style="margin-bottom:8px"><label>API key</label><div class="reveal">' +
@@ -2607,7 +2677,7 @@ function openEngines() {
         toast(ENGINES[k].label + ': ' + list.length + ' models available.', 'good');
       } catch (err) {
         out.innerHTML = '<span style="color:#E29A80">' + esc(err.message) + '</span>' +
-          (k === 'ollama' ? '<br>Most likely Ollama is not running, or it is running without <code>OLLAMA_ORIGINS=*</code>.' : '');
+          (k === 'ollama' ? '<br>' + localFetchAdvice(State.ollamaUrl) : '');
       } finally { b.disabled = false; b.textContent = old; draw(); }
     });
   };
@@ -3376,7 +3446,14 @@ function openGuide() {
       '<div class="divider labelled"><span>Ollama on a network</span></div>' +
       '<p class="hint">Ollama rejects requests from a page it does not recognise. Start it with ' +
         '<code>OLLAMA_ORIGINS=* ollama serve</code>, or set that variable in the desktop app\u2019s settings. ' +
-        'To reach a machine on the LAN, also set <code>OLLAMA_HOST=0.0.0.0</code> and point the address in Engines at it.</p>';
+        'To reach a machine on the LAN, also set <code>OLLAMA_HOST=0.0.0.0</code> and point the address in Engines at it.</p>' +
+      '<div class="divider labelled"><span>When the browser is the problem</span></div>' +
+      '<p class="hint">Since Chrome 142 a page served from the web cannot reach <code>localhost</code> or a private address ' +
+        'until you allow it, and a denied permission looks exactly like a server that is switched off. If this file is hosted ' +
+        'on a domain, open the site menu at the left of the address bar, set <b>Local network access</b> ' +
+        '(<b>Apps on device</b> in newer builds) to <b>Allow</b>, and reload. Firefox and Safari do not gate this yet. ' +
+        'The simplest answer in a classroom is to hand out the file itself: a page opened from the machine Ollama runs on ' +
+        'is never blocked, and that is what this file was built for.</p>';
 
     const sv = api.body.querySelector('[data-save]');
     if (sv) sv.onclick = () => {
