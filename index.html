@@ -1203,6 +1203,11 @@ const Net = {
   last: '',
   lastNote: '',
   directBadUntil: 0,
+  /* Set the first time anything at all leaves this page under its own steam.
+     It is the single most useful fact when Ollama will not answer: if the frame
+     can reach the open internet, the host page's connect-src is not the
+     problem and there is no point sending anyone to look at it. */
+  directOK: false,
 
   setMode(m) { this.mode = m; LS.set('council.wire', m); this.directBadUntil = 0; Link.changed(); },
 
@@ -1229,7 +1234,7 @@ const Net = {
       try {
         const res = await this.send(routes[i], url, init, opts);
         this.last = routes[i];
-        if (routes[i] === 'direct') this.directBadUntil = 0;
+        if (routes[i] === 'direct') { this.directBadUntil = 0; this.directOK = true; }
         return res;
       } catch (e) {
         if (routes[i] === 'direct') this.directBadUntil = Date.now() + 60000;
@@ -1277,16 +1282,27 @@ const Net = {
 /* True when a way out of the frame is actually carrying traffic. */
 function wireHelped() { return Link.relayReady() || Link.hostAllowed(); }
 
-const FRAME_BLOCKED_NOTE =
-  'This page is running inside an iframe, and the page around it decides what a frame may contact. ' +
-  'Open Engines \u2192 Connection and start the relay window: the relay is a page in its own right, ' +
-  'so it can reach what this frame cannot.';
+/* Two different frame stories, and the difference decides where to send someone.
+   If nothing has ever left this page, suspect the host page's connect-src. If
+   things leave it happily and only your own machine is out of reach, it is the
+   local network permission, which only the embedding page can hand down. */
+function frameBlockedNote() {
+  if (Net.directOK) {
+    return 'This frame reaches the open internet perfectly well, so the block is specific to your own machine. ' +
+      'Since Chrome 142 a frame may only reach localhost if the page embedding it passes the permission down with ' +
+      'allow="local-network-access", and a frame cannot grant that to itself. Open Engines \u2192 Connection and start ' +
+      'the relay window, which is a page in its own right and can ask for the permission itself.';
+  }
+  return 'This page is running inside an iframe, and the page around it decides what a frame may contact. ' +
+    'Open Engines \u2192 Connection and start the relay window: the relay is a page in its own right, ' +
+    'so it can reach what this frame cannot.';
+}
 
 function wireFailNote(url, err) {
   let host = String(url || '');
   try { host = new URL(url, location.href).host || host; } catch (e) {}
   const parts = ['Could not reach ' + host + '.'];
-  if (Frame.embedded && !wireHelped()) parts.push(FRAME_BLOCKED_NOTE);
+  if (Frame.embedded && !wireHelped()) parts.push(frameBlockedNote());
   else if (err && /answered in time/i.test(err.message)) parts.push('Nothing answered in time.');
   else parts.push('Check the address, the key and your connection.');
   return parts.join(' ');
@@ -2170,7 +2186,7 @@ function crossesIntoLocalNetwork(url) {
 function localFetchNote(url) {
   const parts = [];
   const framed = Frame.embedded && !wireHelped();
-  if (framed) parts.push(FRAME_BLOCKED_NOTE);
+  if (framed) parts.push(frameBlockedNote());
   /* Inside a frame the permission paragraph is true but beside the point: the
      frame has to be dealt with first. The Engines sheet still prints both. */
   if (!framed && crossesIntoLocalNetwork(url)) {
@@ -2186,8 +2202,13 @@ function localFetchNote(url) {
 function localFetchAdvice(url) {
   const bits = [];
   if (Frame.embedded && !wireHelped()) {
-    bits.push('<b>This page is inside a frame.</b> The page around it decides what a frame may contact, and a frame cannot ' +
-      'give itself permission to reach your own machine. The relay window can, and opening it changes nothing else.' +
+    bits.push('<b>This page is inside a frame.</b> ' +
+      (Net.directOK
+        ? 'It reaches the open internet without trouble, so the fault is not the host page\u2019s content policy \u2014 it is that ' +
+          'a frame may only reach your own machine if the embedding page passes the permission down with ' +
+          '<code>allow="local-network-access"</code>, and a frame cannot grant that to itself.'
+        : 'Nothing has left this page yet, so the page around it may be refusing outside requests altogether.') +
+      ' The relay window is a page in its own right and is not bound by either.' +
       '<br><button class="btn sm" data-openwire style="margin:8px 0 0">Open Connection</button>');
   }
   if (crossesIntoLocalNetwork(url)) {
@@ -2255,6 +2276,14 @@ const WebLLM = {
      has failed here, the relay runs the model instead and posts the text back:
      the relay is a page of its own, with a policy of its own. */
   viaRelay() { return this.blocked && !Relay.serving && Frame.embedded && Link.relayReady(); },
+  /* MLC will not accept a conversation that does not end on a user turn, and
+     the error it gives says nothing about which message is at fault. Keep the
+     guarantee here as well, so a future caller cannot trip over it. */
+  ready(messages) {
+    const m = collapseRoles(messages);
+    if (m.length && m[m.length - 1].role === 'assistant') m.push({ role: 'user', content: 'Continue.' });
+    return m;
+  },
   async load() {
     if (this.lib) return this.lib;
     if (!('gpu' in navigator)) {
@@ -2263,6 +2292,7 @@ const WebLLM = {
     }
     try {
       this.lib = await import('https://esm.run/@mlc-ai/web-llm');
+      Net.directOK = true;   // the frame can fetch from the open internet
     } catch (e) {
       this.blocked = true;
       throw new Error('Could not load the WebLLM library. It needs internet access the first time' +
@@ -2305,7 +2335,7 @@ const WebLLM = {
   },
   relayChat(messages, model, opts) {
     return Link.relay.ask('webllm', {
-      what: 'chat', messages: collapseRoles(messages), model,
+      what: 'chat', messages: this.ready(messages), model,
       opts: { temperature: opts.temperature, maxTokens: opts.maxTokens }
     }, { timeout: 15 * 60 * 1000, onStatus: opts.onStatus });
   },
@@ -2320,7 +2350,7 @@ const WebLLM = {
       if (opts.onStatus) opts.onStatus(r.text || '', r.progress || 0);
     });
     const reply = await eng.chat.completions.create({
-      messages: collapseRoles(messages),
+      messages: this.ready(messages),
       temperature: opts.temperature,
       max_tokens: opts.maxTokens,
       stream: false
@@ -2662,6 +2692,15 @@ function buildContext(member) {
   }
   if (!msgs.some(m => m.role !== 'system')) {
     msgs.push({ role: 'user', content: 'The motion is: ' + State.motion + '\n\nYou have been called first. Open the debate.' });
+  }
+  /* The record can end on this member's own speech \u2014 a single-seat council,
+     or a chair who calls the same member twice running. That would hand the
+     model a conversation ending in its own words. Ollama and OpenAI let it pass
+     as a prefill, Gemini reads it as its own turn, and WebLLM refuses outright
+     with "Last message should be from either user or tool". So the chair speaks
+     and gives the floor back, which is what is actually happening anyway. */
+  if (msgs[msgs.length - 1].role === 'assistant') {
+    msgs.push({ role: 'user', content: 'THE CHAIR: You have the floor again. Continue the argument \u2014 do not repeat what you have already said.' });
   }
   return msgs;
 }
@@ -3200,6 +3239,8 @@ function openConnection() {
         (Frame.sandboxed ? ' \u00b7 sandboxed' : '') +
         (Frame.storageOK ? '' : ' \u00b7 storage is blocked here, so nothing is remembered between visits') +
         (lnaState ? ' \u00b7 local network permission <b>' + esc(lnaState) + '</b>' : '') +
+        (Frame.embedded ? ' \u00b7 ' + (Net.directOK ? 'outside requests from this frame are getting through'
+                                                     : 'nothing has left this frame yet') : '') +
       '</div>' +
     '</div>';
 
