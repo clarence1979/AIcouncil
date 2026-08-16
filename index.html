@@ -17,6 +17,28 @@
   If this file is hosted on a domain rather than opened from disk, Chrome 142+
   also blocks it from reaching localhost until Local network access is allowed
   for the site. Opening the file locally sidesteps that entirely.
+
+  RUNNING INSIDE AN IFRAME
+  A frame cannot reach your own machine on its own account: the page around it
+  owns the security policy, the origin may be opaque, and since Chrome 142 the
+  local network permission has to be handed down the frame chain with
+  allow="local-network-access". So the app carries two ways out, and Engines
+  -> Connection drives both:
+
+    The relay   Reopens this same file in a window of its own with #ai-relay.
+                A top-level window has its own policy and can be granted access
+                to your machine, so it makes the request and hands the answer
+                back over postMessage. Covers every engine, including the
+                in-browser one, and needs nothing installed.
+    The bridge  The embedding page makes the request instead, having included
+                the twenty-line snippet Connection will copy for you. Quicker,
+                but it hands your keys to that page, so it stays off until you
+                allow it for that origin.
+
+  Best of all, embed it like this and neither is needed:
+    <iframe src="ai-council.html"
+            allow="local-network-access; loopback-network; local-network; microphone">
+  and start Ollama with OLLAMA_ORIGINS=* so it answers a page it did not serve.
 -->
 <html lang="en-AU">
 <head>
@@ -557,6 +579,22 @@ pre.brief{font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:
 .vaultbar .switchrow{margin:0;padding:7px 11px;flex:none}
 .vaultbar .switchrow span{font-size:12px;color:var(--cream-2)}
 
+/* ---------------------------------------------- the wire */
+.wire-card{border:1px solid rgba(201,162,77,.18);border-radius:3px;padding:12px 13px;margin-bottom:10px}
+.wire-card h4{font-size:13px;color:#F0E7CF;letter-spacing:.02em;margin:0 0 7px;font-weight:600}
+.wire-log{font-family:var(--mono);font-size:11px;line-height:1.6;max-height:220px;overflow:auto;background:rgba(0,0,0,.45);border:1px solid rgba(191,141,65,.18);border-radius:5px;padding:10px 12px;color:#CEC3AC}
+.wire-log b{color:#EFE4CE;font-weight:600}
+.wire-log .ok{color:#A9CDA3}
+.wire-log .bad{color:#E29A80}
+.wire-pick{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.wire-pick button{padding:6px 11px;border:1px solid rgba(191,141,65,.28);border-radius:4px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--cream-3);background:rgba(255,255,255,.02)}
+.wire-pick button:hover{border-color:rgba(191,141,65,.55);color:var(--cream-2)}
+.wire-pick button.on{border-color:#E0C489;background:rgba(191,141,65,.17);color:#F0E7CF}
+.snip{margin:9px 0 0}
+.snip pre{font-family:var(--mono);font-size:10.5px;line-height:1.5;white-space:pre;overflow:auto;background:rgba(0,0,0,.5);border:1px solid rgba(191,141,65,.18);border-radius:5px;padding:11px 12px;margin:0 0 7px;color:#CEC3AC;max-height:210px}
+.relay-wrap{max-width:520px;margin:0 auto;padding:32px 22px 44px;height:100dvh;height:100vh;overflow:auto;box-sizing:border-box}
+.relay-lede{font-size:13px;line-height:1.62;color:var(--cream-2);margin:10px 0 0}
+
 /* ---------------------------------------------- responsive */
 @media (max-width:1080px){
   .hero h2{font-size:36px}
@@ -846,10 +884,12 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const nowTime = d => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 function toast(msg, kind) {
+  const tray = $('#toasts');
+  if (!tray) { console.log('[council]', msg); return; }
   const el = document.createElement('div');
   el.className = 'toast' + (kind ? ' ' + kind : '');
   el.textContent = msg;
-  $('#toasts').appendChild(el);
+  tray.appendChild(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, kind === 'bad' ? 6500 : 3800);
 }
 
@@ -858,6 +898,585 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { console.warn('storage full', e); } },
   del(k) { try { localStorage.removeItem(k); } catch {} }
 };
+
+/* ==========================================================================
+   THE WIRE — reaching an engine when this page is not the top window.
+
+   An iframe is a different country from a tab. Three separate gates can stop
+   a request that works perfectly when the file is opened on its own:
+
+     1 · Content Security Policy. A frame written with srcdoc, blob: or data:
+         inherits the host page's connect-src. If the host does not list your
+         Ollama address, fetch never leaves this document.
+     2 · An opaque origin. A sandboxed frame sends Origin: null, and Ollama
+         refuses that unless it was started with OLLAMA_ORIGINS=*.
+     3 · Local Network Access. Since Chrome 142 the *embedding* page has to
+         hand the permission down with allow="local-network-access", and every
+         frame in the chain must pass it on. A frame cannot grant it to itself.
+
+   None of the three can be argued with from inside the frame, so the app
+   carries two ways out and uses whichever is available:
+
+     RELAY  — this same file, reopened in a window of its own. A top-level
+              window has its own CSP, its own origin, and can be given the
+              local network permission, so it reaches Ollama when the frame
+              cannot. It makes the request and hands the answer back over
+              postMessage. Nothing is installed and nothing is hosted.
+     BRIDGE — the page doing the embedding makes the request instead, having
+              volunteered by including twenty lines of script. Faster than the
+              relay and needs no second window, but it means handing your
+              request, API key and all, to that page — so it is never used
+              until you allow it, per origin.
+
+   Everything above this layer calls Net.fetch and never learns which road the
+   request took.
+   ========================================================================== */
+const WIRE = 'dv-ai-wire';
+const WIRE_V = 1;
+const RELAY_HASH = 'ai-relay';
+
+function copyText(s, what) {
+  const ok = () => toast((what || 'Text') + ' copied.', 'good');
+  const no = () => toast('The clipboard is blocked here \u2014 select the text and copy it by hand.', 'bad');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(s).then(ok, no); return; }
+  } catch (e) {}
+  no();
+}
+
+/* ------------------------------------------------ where this page is running */
+const Frame = {
+  embedded: (() => { try { return window.self !== window.top; } catch (e) { return true; } })(),
+  storageOK: (() => {
+    try { localStorage.setItem('dv.wire.probe', '1'); localStorage.removeItem('dv.wire.probe'); return true; }
+    catch (e) { return false; }
+  })(),
+  opaque: (() => { try { return window.origin === 'null' || location.origin === 'null'; } catch (e) { return true; } })(),
+  popupsOK: true,
+  /* The origin of the outermost page, when the browser will say. */
+  hostOrigin: (() => {
+    try { const a = location.ancestorOrigins; if (a && a.length) return a[a.length - 1]; } catch (e) {}
+    try { if (document.referrer) return new URL(document.referrer).origin; } catch (e) {}
+    return '';
+  })(),
+  /* An opaque origin or dead storage inside a frame means a sandbox attribute. */
+  get sandboxed() { return this.embedded && (this.opaque || !this.storageOK); },
+  where() {
+    if (!this.embedded) return 'a window of its own';
+    if (this.sandboxed) return 'a sandboxed iframe';
+    return 'an iframe';
+  }
+};
+
+/* Chrome will say outright whether it intends to allow local addresses. */
+let lnaState = '';
+(function readLNA() {
+  try {
+    if (!navigator.permissions || !navigator.permissions.query) return;
+    navigator.permissions.query({ name: 'local-network-access' })
+      .then(r => { lnaState = r.state || ''; }, () => {});
+  } catch (e) {}
+})();
+
+/* ------------------------------------------------------------------ a peer */
+function Peer(win, role) {
+  this.win = win;
+  this.role = role;            // 'relay' | 'bridge'
+  this.state = 'unknown';      // unknown | ready | absent | gone
+  this.pending = new Map();
+  this.n = 0;
+  this._hello = null;
+}
+Peer.prototype.alive = function () { try { return !!this.win && !this.win.closed; } catch (e) { return false; } };
+Peer.prototype.post = function (msg, transfer) {
+  try { this.win.postMessage(msg, '*', transfer || []); return true; } catch (e) { return false; }
+};
+Peer.prototype.hello = function (ms) {
+  return new Promise(resolve => {
+    if (!this.alive()) { this.state = 'gone'; return resolve(false); }
+    const finish = ok => { clearTimeout(t); this._hello = null; resolve(ok); };
+    this._hello = () => finish(true);
+    const t = setTimeout(() => {
+      if (this.state !== 'ready') this.state = 'absent';
+      finish(this.state === 'ready');
+    }, ms || 1200);
+    if (!this.post({ ch: WIRE, v: WIRE_V, type: 'hello', role: 'app' })) finish(false);
+  });
+};
+Peer.prototype.ask = function (op, payload, opts) {
+  opts = opts || {};
+  const self = this;
+  return new Promise((resolve, reject) => {
+    if (!self.alive()) { self.state = 'gone'; return reject(new Error('The ' + self.role + ' is no longer open.')); }
+    const id = self.role + '-' + (++self.n);
+    const ms = opts.timeout || 0;
+    const timer = ms ? setTimeout(() => {
+      self.settle(id, new Error('The ' + self.role + ' did not answer within ' + Math.round(ms / 1000) + ' seconds.'));
+    }, ms) : 0;
+    self.pending.set(id, { resolve, reject, timer, onStatus: opts.onStatus });
+    const msg = Object.assign({ ch: WIRE, v: WIRE_V, type: 'ask', id, op }, payload);
+    if (!self.post(msg)) self.settle(id, new Error('Could not speak to the ' + self.role + '.'));
+  });
+};
+Peer.prototype.settle = function (id, err, val) {
+  const p = this.pending.get(id);
+  if (!p) return;
+  this.pending.delete(id);
+  if (p.timer) clearTimeout(p.timer);
+  if (err) p.reject(err); else p.resolve(val);
+};
+Peer.prototype.dropAll = function (why) {
+  Array.from(this.pending.keys()).forEach(id => this.settle(id, new Error(why)));
+};
+
+/* --------------------------------------------------------------- the links */
+const Link = {
+  relay: null,
+  host: null,
+  allow: LS.get('council.bridgeAllow', {}),
+  watchers: [],
+  onChange(fn) { this.watchers.push(fn); },
+  changed() { this.watchers.forEach(f => { try { f(); } catch (e) {} }); },
+
+  peerFor(src) {
+    if (this.relay && this.relay.win === src) return this.relay;
+    if (this.host && this.host.win === src) return this.host;
+    return null;
+  },
+
+  /* ---- the embedding page ---- */
+  async findHost() {
+    if (!Frame.embedded) return false;
+    let target = null;
+    try { target = window.parent; } catch (e) { target = null; }
+    if (!target || target === window) return false;
+    this.host = new Peer(target, 'bridge');
+    const ok = await this.host.hello(1500);
+    this.changed();
+    return ok;
+  },
+  hostReady() { return !!(this.host && this.host.state === 'ready' && this.host.alive()); },
+  hostKey() { return Frame.hostOrigin || 'this page'; },
+  hostAllowed() { return this.hostReady() && this.allow[this.hostKey()] === true; },
+  allowHost(yes) {
+    this.allow[this.hostKey()] = !!yes;
+    LS.set('council.bridgeAllow', this.allow);
+    this.changed();
+  },
+
+  /* ---- the relay window ---- */
+  relayReady() { return !!(this.relay && this.relay.state === 'ready' && this.relay.alive()); },
+  relayOpening: false,
+  relayWhyNot: '',
+  /* A frame written with srcdoc, blob: or data: has no address a second window
+     could be opened at, so there is no relay to be had and saying so beats
+     twenty seconds of knocking at a blank page. */
+  relayPossible() { return /^https?:$/.test(location.protocol) || location.protocol === 'file:'; },
+  async openRelay() {
+    if (this.relayReady()) { try { this.relay.win.focus(); } catch (e) {} return true; }
+    if (!this.relayPossible()) {
+      this.relayWhyNot = 'This page was written into the frame rather than loaded from an address, so there is nothing to reopen. ' +
+        'The bridge below is the way through; failing that, ask for the file to be embedded by URL.';
+      this.changed();
+      return false;
+    }
+    if (this.relayOpening) return false;
+    this.relayOpening = true;
+    this.changed();
+    try {
+      const url = location.href.split('#')[0] + '#' + RELAY_HASH;
+      let w = null;
+      try { w = window.open(url, 'dvAiRelay', 'width=540,height=640,menubar=no,toolbar=no,location=no'); } catch (e) { w = null; }
+      if (!w) {
+        Frame.popupsOK = false;
+        this.relayWhyNot = 'The browser refused to open the window.';
+        return false;
+      }
+      this.relayWhyNot = '';
+      Frame.popupsOK = true;
+      this.relay = new Peer(w, 'relay');
+      /* The window has to load this whole file before it can answer, so knock. */
+      for (let i = 0; i < 40; i++) {
+        if (await this.relay.hello(500)) { this.relayWhyNot = ''; return true; }
+        if (!this.relay.alive()) break;
+      }
+      /* It loaded but never spoke: almost always a sandbox that stripped the
+         opener, so the new window has no way of answering this one. */
+      if (!this.relayWhyNot) {
+        this.relayWhyNot = this.relay.alive()
+          ? 'The window opened but could not answer this page, which usually means the frame is sandboxed without ' +
+            'allow-popups-to-escape-sandbox. The bridge below is the way through.'
+          : 'The window closed before it could answer.';
+      }
+      return this.relayReady();
+    } finally {
+      this.relayOpening = false;
+      this.changed();
+    }
+  },
+  closeRelay() {
+    if (this.relay) {
+      try { this.relay.post({ ch: WIRE, v: WIRE_V, type: 'bye' }); } catch (e) {}
+      try { this.relay.win.close(); } catch (e) {}
+      this.relay.dropAll('The relay window was closed.');
+      this.relay.state = 'gone';
+    }
+    this.changed();
+  }
+};
+
+/* A relay the user closes by hand must not leave requests hanging. */
+setInterval(() => {
+  if (Link.relay && Link.relay.state === 'ready' && !Link.relay.alive()) {
+    Link.relay.state = 'gone';
+    Link.relay.dropAll('The relay window was closed.');
+    Link.changed();
+  }
+}, 2000);
+
+/* ------------------------------------------------------- one message router */
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || typeof d !== 'object' || d.ch !== WIRE || d.v !== WIRE_V) return;
+  if (Relay.serving) { Relay.handle(e); return; }
+
+  const peer = Link.peerFor(e.source);
+  if (!peer) return;
+
+  if (d.type === 'hello') {
+    peer.state = 'ready';
+    peer.post({ ch: WIRE, v: WIRE_V, type: 'here', role: 'app' });
+    if (peer._hello) peer._hello();
+    Link.changed();
+    return;
+  }
+  if (d.type === 'here') {
+    peer.state = 'ready';
+    if (peer._hello) peer._hello();
+    Link.changed();
+    return;
+  }
+  if (d.type === 'bye') {
+    peer.state = 'gone';
+    peer.dropAll('The ' + peer.role + ' closed.');
+    Link.changed();
+    return;
+  }
+  if (d.type === 'status') {
+    const p = peer.pending.get(d.id);
+    if (p && p.onStatus) p.onStatus(d.text || '', d.progress || 0);
+    return;
+  }
+  if (d.type === 'told') {
+    if (d.error) peer.settle(d.id, new Error(d.error));
+    else peer.settle(d.id, null, d.result);
+  }
+});
+
+/* --------------------------------------------- a Response that survived the wire */
+function WireResponse(r) {
+  r = r || {};
+  this.ok = !!r.ok;
+  this.status = r.status || 0;
+  this.statusText = r.statusText || '';
+  this.url = r.url || '';
+  this._type = r.type || '';
+  this._buf = r.buf || null;
+  this._text = typeof r.text === 'string' ? r.text : null;
+  const ct = this._type;
+  this.headers = { get(k) { return String(k).toLowerCase() === 'content-type' ? ct : null; } };
+}
+WireResponse.prototype.text = async function () {
+  if (this._text != null) return this._text;
+  if (this._buf) { this._text = new TextDecoder().decode(new Uint8Array(this._buf)); return this._text; }
+  return '';
+};
+WireResponse.prototype.json = async function () { return JSON.parse(await this.text()); };
+WireResponse.prototype.blob = async function () {
+  if (this._buf) return new Blob([this._buf], { type: this._type });
+  return new Blob([this._text || ''], { type: this._type });
+};
+
+/* ---------------------------------------------------------------- dispatch */
+const Net = {
+  mode: LS.get('council.wire', 'auto'),   // auto | direct | relay | bridge
+  last: '',
+  lastNote: '',
+  directBadUntil: 0,
+
+  setMode(m) { this.mode = m; LS.set('council.wire', m); this.directBadUntil = 0; Link.changed(); },
+
+  /* Direct first while it is working; once it has failed, try the ways out
+     first and keep direct at the back in case the block was lifted. */
+  routes() {
+    if (this.mode === 'direct') return ['direct'];
+    if (this.mode === 'relay') return Link.relayReady() ? ['relay', 'direct'] : ['direct'];
+    if (this.mode === 'bridge') return Link.hostAllowed() ? ['bridge', 'direct'] : ['direct'];
+    const alt = [];
+    if (Link.relayReady()) alt.push('relay');
+    if (Link.hostAllowed()) alt.push('bridge');
+    return Date.now() > this.directBadUntil ? ['direct'].concat(alt) : alt.concat(['direct']);
+  },
+
+  /* A network-level failure means the request never reached the server, so
+     sending it again down another road cannot double anything up. An HTTP
+     answer, however unwelcome, is an answer and is returned as it stands. */
+  async fetch(url, init, opts) {
+    init = init || {}; opts = opts || {};
+    const routes = this.routes();
+    let first = null;
+    for (let i = 0; i < routes.length; i++) {
+      try {
+        const res = await this.send(routes[i], url, init, opts);
+        this.last = routes[i];
+        if (routes[i] === 'direct') this.directBadUntil = 0;
+        return res;
+      } catch (e) {
+        if (routes[i] === 'direct') this.directBadUntil = Date.now() + 60000;
+        if (!first) first = e;
+      }
+    }
+    const err = new Error(wireFailNote(url, first));
+    err.wire = true;
+    this.lastNote = err.message;
+    throw err;
+  },
+
+  send(route, url, init, opts) {
+    if (route === 'direct') return this.direct(url, init, opts);
+    const peer = route === 'relay' ? Link.relay : Link.host;
+    if (!peer) return Promise.reject(new Error('No ' + route + ' is connected.'));
+    let abs = url;
+    try { abs = new URL(url, location.href).href; } catch (e) {}
+    return peer.ask('fetch', {
+      url: abs,
+      method: init.method || 'GET',
+      headers: init.headers || null,
+      body: typeof init.body === 'string' ? init.body : null
+    }, { timeout: opts.timeout ? opts.timeout + 5000 : 300000 }).then(r => new WireResponse(r));
+  },
+
+  async direct(url, init, opts) {
+    let ctl = null, timer = 0;
+    init = Object.assign({}, init);
+    if (opts.timeout && !init.signal) {
+      ctl = new AbortController();
+      init.signal = ctl.signal;
+      timer = setTimeout(() => ctl.abort(), opts.timeout);
+    }
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      const err = new Error(e && e.name === 'AbortError' ? 'Nothing answered in time.' : 'The request never left this page.');
+      err.wire = 'direct';
+      throw err;
+    } finally { if (timer) clearTimeout(timer); }
+  }
+};
+
+/* True when a way out of the frame is actually carrying traffic. */
+function wireHelped() { return Link.relayReady() || Link.hostAllowed(); }
+
+const FRAME_BLOCKED_NOTE =
+  'This page is running inside an iframe, and the page around it decides what a frame may contact. ' +
+  'Open Engines \u2192 Connection and start the relay window: the relay is a page in its own right, ' +
+  'so it can reach what this frame cannot.';
+
+function wireFailNote(url, err) {
+  let host = String(url || '');
+  try { host = new URL(url, location.href).host || host; } catch (e) {}
+  const parts = ['Could not reach ' + host + '.'];
+  if (Frame.embedded && !wireHelped()) parts.push(FRAME_BLOCKED_NOTE);
+  else if (err && /answered in time/i.test(err.message)) parts.push('Nothing answered in time.');
+  else parts.push('Check the address, the key and your connection.');
+  return parts.join(' ');
+}
+
+/* ==========================================================================
+   THE RELAY WINDOW
+
+   The same file, opened at #ai-relay. It draws a small status card instead of
+   the chamber, answers its opener's requests, and closes when it is no longer
+   wanted. Because it is top level it has its own CSP and its own origin, which
+   is the entire point.
+   ========================================================================== */
+const Relay = {
+  serving: false,
+  served: 0,
+  log: [],
+
+  wanted() { return (location.hash || '').replace(/^#/, '').split(/[&?]/)[0] === RELAY_HASH; },
+
+  start() {
+    this.serving = true;
+    document.title = 'AI Council \u2014 relay';
+    this.paint();
+    if (!window.opener) return;
+    try { window.opener.postMessage({ ch: WIRE, v: WIRE_V, type: 'here', role: 'relay' }, '*'); } catch (e) {}
+    window.addEventListener('beforeunload', () => {
+      try { window.opener.postMessage({ ch: WIRE, v: WIRE_V, type: 'bye', role: 'relay' }, '*'); } catch (e) {}
+    });
+    /* If the chamber goes, there is nothing left to relay for. */
+    setInterval(() => { try { if (!window.opener || window.opener.closed) window.close(); } catch (e) {} }, 3000);
+  },
+
+  handle(e) {
+    const d = e.data;
+    if (window.opener && e.source !== window.opener) return;   // only the page that opened us
+    if (d.type === 'hello') {
+      try { e.source.postMessage({ ch: WIRE, v: WIRE_V, type: 'here', role: 'relay' }, '*'); } catch (err) {}
+      return;
+    }
+    if (d.type === 'bye') { window.close(); return; }
+    if (d.type !== 'ask') return;
+    if (d.op === 'fetch') this.doFetch(e.source, d);
+    else if (d.op === 'webllm') this.doWebLLM(e.source, d);
+    else this.fail(e.source, d, 'The relay does not know how to do that.');
+  },
+
+  reply(src, d, result, transfer) {
+    try { src.postMessage({ ch: WIRE, v: WIRE_V, type: 'told', id: d.id, result }, '*', transfer || []); } catch (e) {}
+  },
+  fail(src, d, message) {
+    try { src.postMessage({ ch: WIRE, v: WIRE_V, type: 'told', id: d.id, error: message }, '*'); } catch (e) {}
+  },
+
+  async doFetch(src, d) {
+    const started = Date.now();
+    let where = d.url;
+    try { where = new URL(d.url).host; } catch (e) {}
+    try {
+      const res = await fetch(d.url, {
+        method: d.method || 'GET',
+        headers: d.headers || undefined,
+        body: d.body == null ? undefined : d.body
+      });
+      const buf = await res.arrayBuffer();
+      this.note(where, res.ok, res.status, Date.now() - started);
+      this.reply(src, d, {
+        ok: res.ok, status: res.status, statusText: res.statusText, url: res.url,
+        type: res.headers.get('content-type') || '', buf
+      }, [buf]);
+    } catch (err) {
+      this.note(where, false, 'blocked', Date.now() - started);
+      this.fail(src, d, 'The relay could not reach ' + where + '. ' + relayReason(d.url));
+    }
+  },
+
+  /* WebLLM downloads a library and a model. A host page's CSP can forbid the
+     import outright, so the relay runs the model and posts the text back. */
+  async doWebLLM(src, d) {
+    const started = Date.now();
+    try {
+      let out;
+      if (d.what === 'models') {
+        out = await WebLLM.listModels();
+      } else {
+        const opts = Object.assign({}, d.opts || {}, {
+          onStatus: (text, progress) => {
+            try { src.postMessage({ ch: WIRE, v: WIRE_V, type: 'status', id: d.id, text, progress }, '*'); } catch (e) {}
+          }
+        });
+        out = await WebLLM.chat(d.messages, d.model, opts);
+      }
+      this.note('in-browser model', true, 'ok', Date.now() - started);
+      this.reply(src, d, out);
+    } catch (err) {
+      this.note('in-browser model', false, 'failed', Date.now() - started);
+      this.fail(src, d, err.message);
+    }
+  },
+
+  note(where, ok, code, ms) {
+    this.served++;
+    this.log.unshift({ at: Date.now(), where, ok, code, ms });
+    if (this.log.length > 40) this.log.length = 40;
+    this.paintLog();
+  },
+
+  paint() {
+    const opener = !!window.opener;
+    document.body.innerHTML =
+      '<div class="relay-wrap">' +
+        '<div class="eyebrow" style="letter-spacing:.24em">AI Council</div>' +
+        '<h1 style="font-family:var(--serif);font-size:26px;color:#F0E7CF;margin:6px 0 4px;font-weight:400">The relay</h1>' +
+        (opener
+          ? '<p class="relay-lede">Leave this window open. The chamber is in a frame that cannot reach your own machine, ' +
+            'so it asks this window to make its requests instead. Nothing is stored here and nothing is sent anywhere ' +
+            'the chamber would not have sent it itself.</p>' +
+            '<div class="keystat" style="margin:14px 0 12px"><span class="dot on"></span>' +
+              '<span class="vstat ok" id="relayState">Standing by.</span></div>' +
+            '<div class="eyebrow dim" style="margin-bottom:6px">Requests</div>' +
+            '<div class="wire-log" id="relayLog"><span style="color:rgba(230,213,187,.38)">Nothing yet.</span></div>' +
+            '<p class="hint" style="margin-top:14px">If a request below says <b>blocked</b>, the fault is on this side: ' +
+            'Ollama is not running, or it was not started with <code>OLLAMA_ORIGINS=*</code>. If Chrome asks to allow ' +
+            'access to devices on your network, say yes.</p>'
+          : '<p class="relay-lede">This window was opened on its own, so there is nothing for it to relay. ' +
+            'Close it and open the chamber instead.</p>') +
+      '</div>';
+  },
+
+  paintLog() {
+    const el = document.getElementById('relayLog');
+    if (!el) return;
+    const st = document.getElementById('relayState');
+    if (st) st.textContent = this.served === 1 ? '1 request carried.' : this.served + ' requests carried.';
+    el.innerHTML = this.log.map(r =>
+      '<div><b>' + nowTime(r.at) + '</b> ' + esc(r.where) +
+      ' <span class="' + (r.ok ? 'ok' : 'bad') + '">' + esc(String(r.code)) + '</span>' +
+      ' <span style="color:rgba(230,213,187,.32)">' + r.ms + 'ms</span></div>'
+    ).join('');
+  }
+};
+
+/* Said by the relay when its own fetch failed — at that point the frame is no
+   longer the suspect, so the advice is about Ollama and the browser. */
+function relayReason(url) {
+  let space = 'public';
+  try { space = addressSpace(new URL(url).hostname); } catch (e) {}
+  if (space === 'public') return 'The provider did not answer.';
+  return 'Check Ollama is running and was started with OLLAMA_ORIGINS=*, and that Chrome has been allowed local network access for this page.';
+}
+
+/* ---------------------------------------------------------- the two snippets */
+function bridgeSnippet() {
+  return '<script>\n' +
+'/* AI Council \u2014 network bridge. Paste into the page that embeds the app. */\n' +
+'(function () {\n' +
+'  var CH = "dv-ai-wire", V = 1;\n' +
+'  var FROM = "*";   // set to the app\'s origin to accept requests from it alone\n' +
+'  window.addEventListener("message", function (e) {\n' +
+'    var d = e.data;\n' +
+'    if (!d || d.ch !== CH || d.v !== V) return;\n' +
+'    if (FROM !== "*" && e.origin !== FROM) return;\n' +
+'    var say = function (body, tx) {\n' +
+'      body.ch = CH; body.v = V;\n' +
+'      e.source.postMessage(body, "*", tx || []);\n' +
+'    };\n' +
+'    if (d.type === "hello") return say({ type: "here", role: "bridge" });\n' +
+'    if (d.type !== "ask" || d.op !== "fetch") return;\n' +
+'    fetch(d.url, { method: d.method || "GET", headers: d.headers || undefined,\n' +
+'                   body: d.body == null ? undefined : d.body })\n' +
+'      .then(function (r) {\n' +
+'        return r.arrayBuffer().then(function (buf) {\n' +
+'          say({ type: "told", id: d.id, result: { ok: r.ok, status: r.status,\n' +
+'            statusText: r.statusText, type: r.headers.get("content-type") || "",\n' +
+'            buf: buf } }, [buf]);\n' +
+'        });\n' +
+'      })\n' +
+'      .catch(function (err) {\n' +
+'        say({ type: "told", id: d.id, error: String((err && err.message) || err) });\n' +
+'      });\n' +
+'  });\n' +
+'})();\n' +
+'<\/script>';
+}
+function embedSnippet() {
+  const src = location.href.split('#')[0] || 'ai-council.html';
+  return '<iframe src="' + src + '"\n' +
+    '        allow="local-network-access; loopback-network; local-network; microphone; clipboard-write"\n' +
+    '        style="width:100%;height:900px;border:0"></iframe>';
+}
 
 /* ==========================================================================
    THE KEY VAULT — one set of API keys, shared across the offline tools.
@@ -976,21 +1595,21 @@ async function probeKey(engine, key) {
   let res;
   try {
     if (engine === 'openai') {
-      res = await fetch('https://api.openai.com/v1/models', {
+      res = await Net.fetch('https://api.openai.com/v1/models', {
         headers: { Authorization: 'Bearer ' + key }, signal: ctl.signal
-      });
+      }, { timeout: 12000 });
     } else if (engine === 'anthropic') {
-      res = await fetch('https://api.anthropic.com/v1/models?limit=1', {
+      res = await Net.fetch('https://api.anthropic.com/v1/models?limit=1', {
         headers: {
           'x-api-key': key,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         }, signal: ctl.signal
-      });
+      }, { timeout: 12000 });
     } else if (engine === 'google') {
-      res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {
+      res = await Net.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {
         headers: { 'x-goog-api-key': key }, signal: ctl.signal
-      });
+      }, { timeout: 12000 });
     } else {
       return { state: 'unreachable', detail: 'This engine has no key to check.' };
     }
@@ -1549,24 +2168,39 @@ function crossesIntoLocalNetwork(url) {
   return target !== 'public' && pageSpace() === 'public';
 }
 function localFetchNote(url) {
-  if (!crossesIntoLocalNetwork(url)) {
-    return 'Check that Ollama is running, and that it was started with OLLAMA_ORIGINS=*.';
+  const parts = [];
+  const framed = Frame.embedded && !wireHelped();
+  if (framed) parts.push(FRAME_BLOCKED_NOTE);
+  /* Inside a frame the permission paragraph is true but beside the point: the
+     frame has to be dealt with first. The Engines sheet still prints both. */
+  if (!framed && crossesIntoLocalNetwork(url)) {
+    parts.push('This page is served from ' + location.origin + ', and Chrome 142 and later will not let a page from the web reach ' +
+      'your own machine until you allow it \u2014 open the site menu at the left of the address bar and set Local network access ' +
+      '(newer builds call it Apps on device) to Allow.');
   }
-  return 'This page is served from ' + location.origin + ', and Chrome 142 and later will not let a page from the web reach ' +
-    'your own machine until you allow it. Open the site menu at the left of the address bar, set Local network access ' +
-    '(newer builds call it Apps on device) to Allow, and reload. Opening this file from your own machine avoids the block entirely.';
+  parts.push('Ollama itself has to be running, and started with OLLAMA_ORIGINS=* so it will answer a page it did not serve.');
+  return parts.join(' ');
 }
+/* The same reasoning, in markup, for the Engines sheet. Each cause gets its
+   own paragraph, because in a frame there are usually two of them at once. */
 function localFetchAdvice(url) {
-  if (!crossesIntoLocalNetwork(url)) {
-    return 'Most likely Ollama is not running, or it is running without <code>OLLAMA_ORIGINS=*</code>. ' +
-      'Check it with <code>curl ' + esc(String(url || '').replace(/\/+$/, '')) + '/api/tags</code>.';
+  const bits = [];
+  if (Frame.embedded && !wireHelped()) {
+    bits.push('<b>This page is inside a frame.</b> The page around it decides what a frame may contact, and a frame cannot ' +
+      'give itself permission to reach your own machine. The relay window can, and opening it changes nothing else.' +
+      '<br><button class="btn sm" data-openwire style="margin:8px 0 0">Open Connection</button>');
   }
-  return '<b>Chrome blocked this, not Ollama.</b> This page is served from <code>' + esc(location.origin) + '</code>, and since ' +
-    'Chrome 142 a page from the web cannot reach localhost or a private address until you allow it.' +
-    '<br><b>1 ·</b> Open the site menu at the left of the address bar, find <b>Local network access</b> ' +
-    '(newer builds call it <b>Apps on device</b>) and set it to <b>Allow</b>, then reload. If it already reads Block, that is the whole fault.' +
-    '<br><b>2 ·</b> Ollama has to accept this page as well: start it with <code>OLLAMA_ORIGINS=' + esc(location.origin) + ' ollama serve</code>.' +
-    '<br><b>Or avoid both:</b> save this file and open it from the machine Ollama runs on. Nothing blocks localhost talking to localhost.';
+  if (crossesIntoLocalNetwork(url)) {
+    bits.push('<b>Chrome may be blocking this, not Ollama.</b> This page is served from <code>' + esc(location.origin) + '</code>, ' +
+      'and since Chrome 142 a page from the web cannot reach localhost or a private address until you allow it. ' +
+      'Open the site menu at the left of the address bar, find <b>Local network access</b> ' +
+      '(newer builds call it <b>Apps on device</b>) and set it to <b>Allow</b>, then reload.' +
+      (lnaState ? ' Chrome currently reports this permission as <b>' + esc(lnaState) + '</b>.' : ''));
+  }
+  bits.push('<b>Ollama has to accept this page as well.</b> Start it with <code>OLLAMA_ORIGINS=* ollama serve</code>, ' +
+    'or set that variable in the Ollama app settings. Check it is up with <code>curl ' +
+    esc(String(url || '').replace(/\/+$/, '')) + '/api/tags</code>.');
+  return bits.join('<br><br>');
 }
 
 async function readErr(res) {
@@ -1581,15 +2215,15 @@ const OllamaEngine = {
   base() { return (State.ollamaUrl || 'http://localhost:11434').replace(/\/+$/, ''); },
   /* fetch() rejects with a bare TypeError whether Ollama is down, blocked by
      CORS or blocked by the browser before it left the page. Say which. */
-  async call(path, init) {
+  async call(path, init, opts) {
     try {
-      return await fetch(this.base() + path, init);
+      return await Net.fetch(this.base() + path, init, opts);
     } catch (e) {
       throw new Error('Could not reach Ollama at ' + this.base() + '. ' + localFetchNote(this.base()));
     }
   },
   async listModels() {
-    const res = await this.call('/api/tags');
+    const res = await this.call('/api/tags', null, { timeout: 15000 });
     if (!res.ok) throw new Error(await readErr(res));
     const data = await res.json();
     return (data.models || []).map(m => ({
@@ -1614,19 +2248,37 @@ const OllamaEngine = {
 
 /* ---------------------------------------------------------------- WebLLM */
 const WebLLM = {
-  lib: null, engines: {}, loading: {},
+  lib: null, engines: {}, loading: {}, blocked: false,
+  /* The library is an ES module pulled off the network, and the weights follow
+     it. A host page's script-src can refuse that import outright, and no
+     amount of retrying inside the frame will change its mind. Once the import
+     has failed here, the relay runs the model instead and posts the text back:
+     the relay is a page of its own, with a policy of its own. */
+  viaRelay() { return this.blocked && !Relay.serving && Frame.embedded && Link.relayReady(); },
   async load() {
     if (this.lib) return this.lib;
-    if (!('gpu' in navigator)) throw new Error('This browser has no WebGPU. Chrome or Edge 121+, or Safari 26+, can run in-browser models.');
+    if (!('gpu' in navigator)) {
+      throw new Error('This browser has no WebGPU. Chrome or Edge 121+, or Safari 26+, can run in-browser models.' +
+        (Frame.embedded ? ' A frame can also be refused WebGPU by the page around it.' : ''));
+    }
     try {
       this.lib = await import('https://esm.run/@mlc-ai/web-llm');
     } catch (e) {
-      throw new Error('Could not load the WebLLM library. It needs internet access the first time. (' + e.message + ')');
+      this.blocked = true;
+      throw new Error('Could not load the WebLLM library. It needs internet access the first time' +
+        (Frame.embedded ? ', and the page around this frame may be refusing the download. Open Engines \u2192 Connection and start the relay window, which loads it in a page of its own' : '') +
+        '. (' + e.message + ')');
     }
     return this.lib;
   },
   async listModels() {
-    const lib = await this.load();
+    if (this.viaRelay()) return await Link.relay.ask('webllm', { what: 'models' }, { timeout: 90000 });
+    let lib;
+    try { lib = await this.load(); }
+    catch (e) {
+      if (this.viaRelay()) return await Link.relay.ask('webllm', { what: 'models' }, { timeout: 90000 });
+      throw e;
+    }
     const list = (lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list) || [];
     return list
       .filter(m => !/embedding|Coder|Base-/i.test(m.model_id))
@@ -1651,7 +2303,19 @@ const WebLLM = {
     })();
     return this.loading[model];
   },
+  relayChat(messages, model, opts) {
+    return Link.relay.ask('webllm', {
+      what: 'chat', messages: collapseRoles(messages), model,
+      opts: { temperature: opts.temperature, maxTokens: opts.maxTokens }
+    }, { timeout: 15 * 60 * 1000, onStatus: opts.onStatus });
+  },
   async chat(messages, model, opts) {
+    if (this.viaRelay()) return await this.relayChat(messages, model, opts);
+    try { await this.load(); }
+    catch (e) {
+      if (this.viaRelay()) return await this.relayChat(messages, model, opts);
+      throw e;
+    }
     const eng = await this.engineFor(model, r => {
       if (opts.onStatus) opts.onStatus(r.text || '', r.progress || 0);
     });
@@ -1669,9 +2333,9 @@ const WebLLM = {
 const OpenAIEngine = {
   key() { return (State.keys.openai || '').trim(); },
   async listModels() {
-    const res = await fetch('https://api.openai.com/v1/models', {
+    const res = await Net.fetch('https://api.openai.com/v1/models', {
       headers: { Authorization: 'Bearer ' + this.key() }
-    });
+    }, { timeout: 25000 });
     if (!res.ok) throw new Error(await readErr(res));
     const data = await res.json();
     return (data.data || []).map(m => ({ id: m.id }));
@@ -1684,7 +2348,7 @@ const OpenAIEngine = {
       max_completion_tokens: opts.maxTokens
     };
     for (let attempt = 0; attempt < 4; attempt++) {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await Net.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + this.key() },
         body: JSON.stringify(body)
@@ -1708,7 +2372,7 @@ const OpenAIEngine = {
     throw new Error('OpenAI rejected the request four times running.');
   },
   async speak(text, voice, model, speed) {
-    const res = await fetch('https://api.openai.com/v1/audio/speech', {
+    const res = await Net.fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + this.key() },
       body: JSON.stringify({ model: model || 'gpt-4o-mini-tts', input: text, voice: voice || 'alloy', speed: clamp(speed || 1, 0.25, 4) })
@@ -1717,7 +2381,7 @@ const OpenAIEngine = {
     return await res.blob();
   },
   async image(prompt, model) {
-    const res = await fetch('https://api.openai.com/v1/images/generations', {
+    const res = await Net.fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + this.key() },
       body: JSON.stringify({ model: model || 'gpt-image-2', prompt, n: 1, size: '1024x1024' })
@@ -1742,14 +2406,14 @@ const AnthropicEngine = {
     };
   },
   async listModels() {
-    const res = await fetch('https://api.anthropic.com/v1/models?limit=100', { headers: this.headers() });
+    const res = await Net.fetch('https://api.anthropic.com/v1/models?limit=100', { headers: this.headers() }, { timeout: 25000 });
     if (!res.ok) throw new Error(await readErr(res));
     const data = await res.json();
     return (data.data || []).map(m => ({ id: m.id, note: m.display_name || '' }));
   },
   async chat(messages, model, opts) {
     const { sys, rest } = splitSystem(messages);
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await Net.fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: this.headers(),
       body: JSON.stringify({
         model, system: sys || undefined, messages: rest,
@@ -1766,9 +2430,9 @@ const AnthropicEngine = {
 const GoogleEngine = {
   key() { return (State.keys.google || '').trim(); },
   async listModels() {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+    const res = await Net.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
       headers: { 'x-goog-api-key': this.key() }
-    });
+    }, { timeout: 25000 });
     if (!res.ok) throw new Error(await readErr(res));
     const data = await res.json();
     return (data.models || [])
@@ -1783,7 +2447,7 @@ const GoogleEngine = {
     };
     if (sys) body.systemInstruction = { parts: [{ text: sys }] };
     if (opts.json) body.generationConfig.responseMimeType = 'application/json';
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+    const res = await Net.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.key() },
       body: JSON.stringify(body)
@@ -2503,6 +3167,232 @@ function confirmDialog(title, msg, label, onYes) {
 }
 
 /* ==========================================================================
+   MODAL — Connection
+
+   Everything the app knows about why a request might not be getting out, and
+   the two ways round it. Written to be read by whoever is standing at the
+   machine, not by whoever wrote the host page.
+   ========================================================================== */
+function wireStuck() { return Date.now() <= Net.directBadUntil && !wireHelped(); }
+function wireStatusLine() {
+  if (!Frame.embedded) return 'This page has a window of its own, so it can reach Ollama on this machine directly.';
+  if (Link.relayReady()) return 'Running in ' + Frame.where() + '. Requests are going out through the relay window.';
+  if (Link.hostAllowed()) return 'Running in ' + Frame.where() + '. The page around this one is making the requests.';
+  if (wireStuck()) return 'Running in ' + Frame.where() + ', and requests are not getting out of it. Start the relay below.';
+  return 'Running in ' + Frame.where() + '. Requests are going direct, which is working so far.';
+}
+function wireDot() { return wireStuck() ? 'warn' : 'on'; }
+
+function openConnection() {
+  let probe = '';
+  const m = openModal({
+    title: 'Connection', wide: true,
+    foot: '<button class="btn primary" data-done>Done</button>'
+  });
+
+  const whereCard = () =>
+    '<div class="wire-card">' +
+      '<h4>Where this page is running</h4>' +
+      '<div class="keystat"><span class="dot ' + wireDot() + '"></span><span class="vstat' +
+        (wireDot() === 'warn' ? ' warn' : ' ok') + '">' + esc(wireStatusLine()) + '</span></div>' +
+      '<div class="hint" style="margin-top:8px">Origin <code>' + esc(location.origin) + '</code>' +
+        (Frame.embedded && Frame.hostOrigin ? ' \u00b7 embedded by <code>' + esc(Frame.hostOrigin) + '</code>' : '') +
+        (Frame.sandboxed ? ' \u00b7 sandboxed' : '') +
+        (Frame.storageOK ? '' : ' \u00b7 storage is blocked here, so nothing is remembered between visits') +
+        (lnaState ? ' \u00b7 local network permission <b>' + esc(lnaState) + '</b>' : '') +
+      '</div>' +
+    '</div>';
+
+  const relayCard = () => {
+    const up = Link.relayReady(), can = Link.relayPossible();
+    if (!can && !Link.relayWhyNot) {
+      Link.relayWhyNot = 'This page was written straight into the frame rather than loaded from an address, so there is no ' +
+        'second window to open. The bridge below is the way through; failing that, ask for the file to be embedded by URL.';
+    }
+    return '<div class="wire-card">' +
+      '<h4>The relay window</h4>' +
+      '<div class="keystat"><span class="dot' + (up ? ' on' : '') + '"></span><span class="vstat' + (up ? ' ok' : '') + '">' +
+        esc(up ? 'Open, and carrying requests.' : Link.relayOpening ? 'Opening\u2026' : 'Not open.') + '</span></div>' +
+      '<div class="hint" style="margin-top:7px">This same file, reopened in a window of its own. A top-level window has its ' +
+        'own security policy and can be granted access to your machine, so it gets through where a frame cannot. Leave it open ' +
+        'while the council sits. It stores nothing and shows you every request it carries.</div>' +
+      (up || !Link.relayWhyNot ? '' :
+        '<div class="note bad" style="margin:9px 0 0">' + esc(Link.relayWhyNot) +
+        (Frame.popupsOK ? '' : ' Allow pop-ups for this page and try again.') + '</div>') +
+      '<div class="inline" style="gap:7px;margin-top:9px;flex-wrap:wrap">' +
+        '<button class="btn sm" data-relay' + (can ? '' : ' disabled style="opacity:.45;cursor:default"') + '>' +
+          (up ? 'Bring it to the front' : 'Start the relay') + '</button>' +
+        (up ? '<button class="btn sm danger" data-relayoff>Close it</button>' : '') +
+      '</div>' +
+    '</div>';
+  };
+
+  const bridgeCard = () => {
+    if (!Frame.embedded) return '';
+    const found = Link.hostReady(), allowed = Link.hostAllowed();
+    return '<div class="wire-card">' +
+      '<h4>The page around this one</h4>' +
+      '<div class="keystat"><span class="dot' + (allowed ? ' on' : found ? ' warn' : '') + '"></span>' +
+        '<span class="vstat' + (allowed ? ' ok' : found ? ' warn' : '') + '">' + esc(
+          allowed ? 'Allowed, and making requests on this page\u2019s behalf.'
+                  : found ? 'It offers to make requests for this page. Not allowed yet.'
+                          : 'It is not offering. Paste the bridge below into it to change that.') + '</span></div>' +
+      (found && !allowed
+        ? '<div class="note warn" style="margin:9px 0 0"><b>Read this before allowing it.</b> Every request would be handed to ' +
+          '<code>' + esc(Link.hostKey()) + '</code> to make for you, API keys and all. Allow it only if that page is yours.</div>'
+        : '<div class="hint" style="margin-top:7px">Quicker than the relay and needs no second window, but it hands your requests ' +
+          '\u2014 keys included \u2014 to whoever wrote the embedding page.</div>') +
+      '<div class="inline" style="gap:7px;margin-top:9px;flex-wrap:wrap">' +
+        (found
+          ? (allowed ? '<button class="btn sm danger" data-bridgeoff>Stop using it</button>'
+                     : '<button class="btn sm" data-bridgeon>Allow ' + esc(Link.hostKey()) + '</button>')
+          : '<button class="btn sm" data-bridgefind>Ask again</button>') +
+      '</div>' +
+    '</div>';
+  };
+
+  const routeCard = () => {
+    const opts = [['auto', 'Choose for me'], ['direct', 'Direct only'], ['relay', 'Relay first'], ['bridge', 'Bridge first']];
+    return '<div class="wire-card">' +
+      '<h4>Which road to take</h4>' +
+      '<div class="hint">Leave this on <b>Choose for me</b> unless you are testing something. It tries direct first, and the ' +
+        'moment a request fails to leave the page it switches to whatever else is open.</div>' +
+      '<div class="wire-pick">' + opts.map(o =>
+        '<button data-route="' + o[0] + '"' + (Net.mode === o[0] ? ' class="on"' : '') + '>' + esc(o[1]) + '</button>').join('') +
+      '</div>' +
+    '</div>';
+  };
+
+  const testCard = () =>
+    '<div class="wire-card">' +
+      '<h4>Test it</h4>' +
+      '<div class="hint">Calls every engine you have set up and reports which road the answer came back on.</div>' +
+      '<div class="inline" style="margin-top:9px"><button class="btn sm" data-test>Test every engine</button></div>' +
+      (probe ? '<div class="wire-log" style="margin-top:9px">' + probe + '</div>' : '') +
+    '</div>';
+
+  const snippetCard = () =>
+    '<div class="wire-card">' +
+      '<h4>For whoever embeds this page</h4>' +
+      '<div class="hint">A frame has to be handed permission to reach a local address, and every frame in the chain has to pass ' +
+        'it on. This is the tag that does it. Adding <code>sandbox</code> takes the permission away again, so leave it off.</div>' +
+      '<div class="snip"><pre>' + esc(embedSnippet()) + '</pre>' +
+        '<button class="btn sm" data-copyembed>Copy the frame tag</button></div>' +
+      '<div class="hint" style="margin-top:14px">And this, in that same page, is the bridge: it lets the page make requests for ' +
+        'this one, with no second window. Nothing happens until you allow it above.</div>' +
+      '<div class="snip"><pre>' + esc(bridgeSnippet()) + '</pre>' +
+        '<button class="btn sm" data-copybridge>Copy the bridge</button></div>' +
+    '</div>';
+
+  const draw = () => {
+    m.body.innerHTML =
+      '<div class="note">Every engine call has to leave this page somehow. From a window of its own that is simply direct. ' +
+      'From inside a frame it often cannot be, because the page around it decides what a frame may contact \u2014 so the app ' +
+      'carries two ways round, and uses whichever is open.</div>' +
+      whereCard() + relayCard() + bridgeCard() + routeCard() + testCard() + snippetCard();
+    wireUp();
+  };
+
+  const wireUp = () => {
+    const relayBtn = m.body.querySelector('[data-relay]');
+    if (relayBtn && !relayBtn.disabled) relayBtn.onclick = async () => {
+      relayBtn.disabled = true; relayBtn.textContent = 'Opening\u2026';
+      const ok = await Link.openRelay();
+      draw();
+      toast(ok ? 'The relay is open. Leave that window where it is.'
+               : 'The relay window could not be opened. Check that pop-ups are allowed here.', ok ? 'good' : 'bad');
+      if (ok) refreshAfterConnect();
+    };
+    const off = m.body.querySelector('[data-relayoff]');
+    if (off) off.onclick = () => { Link.closeRelay(); draw(); };
+
+    const find = m.body.querySelector('[data-bridgefind]');
+    if (find) find.onclick = async () => {
+      find.disabled = true; find.textContent = 'Asking\u2026';
+      const ok = await Link.findHost();
+      draw();
+      if (!ok) toast('The page around this one did not answer. It needs the bridge script below.');
+    };
+    const on = m.body.querySelector('[data-bridgeon]');
+    if (on) on.onclick = () => {
+      Link.allowHost(true); draw();
+      toast('The embedding page will now make requests for this one.', 'good');
+      refreshAfterConnect();
+    };
+    const bOff = m.body.querySelector('[data-bridgeoff]');
+    if (bOff) bOff.onclick = () => { Link.allowHost(false); draw(); toast('Stopped. Requests go direct or through the relay.'); };
+
+    m.body.querySelectorAll('[data-route]').forEach(b => b.onclick = () => { Net.setMode(b.dataset.route); draw(); });
+
+    const test = m.body.querySelector('[data-test]');
+    if (test) test.onclick = async () => {
+      test.disabled = true; const old = test.textContent; test.textContent = 'Testing\u2026';
+      probe = '<div style="color:rgba(230,213,187,.38)">Working\u2026</div>';
+      const lines = await wireTest();
+      probe = lines.join('');
+      test.disabled = false; test.textContent = old;
+      draw();
+    };
+
+    const ce = m.body.querySelector('[data-copyembed]');
+    if (ce) ce.onclick = () => copyText(embedSnippet(), 'Frame tag');
+    const cb = m.body.querySelector('[data-copybridge]');
+    if (cb) cb.onclick = () => copyText(bridgeSnippet(), 'Bridge');
+
+    m.foot.querySelector('[data-done]').onclick = m.close;
+  };
+
+  /* Redraw while the sheet is up; forget the sheet once it is gone, so a long
+     session does not collect a watcher per visit. */
+  Link.onChange(function watch() {
+    if (document.body.contains(m.el)) draw();
+    else Link.watchers = Link.watchers.filter(f => f !== watch);
+  });
+  draw();
+}
+
+/* A model list that failed before there was a way out is still empty. Now that
+   there is one, go and get it, quietly. */
+function refreshAfterConnect() {
+  Net.directBadUntil = 0;
+  fetchModels('ollama', true)
+    .then(l => { if (l.length) { markEnginesReady(); renderBench(); toast(l.length + ' Ollama model(s) found.', 'good'); } })
+    .catch(() => {});
+  Object.keys(ENGINES).forEach(k => {
+    if (ENGINES[k].needsKey && hasKey(k)) fetchModels(k, true).catch(() => {});
+  });
+}
+
+/* One line per engine, saying whether it answered and by which road. */
+async function wireTest() {
+  const say = (label, ok, detail, via) =>
+    '<div><b>' + esc(label) + '</b> <span class="' + (ok ? 'ok' : 'bad') + '">' + esc(ok ? 'answered' : 'no answer') + '</span>' +
+    (via ? ' <span style="color:rgba(230,213,187,.42)">via ' + esc(via) + '</span>' : '') +
+    '<br><span style="color:rgba(230,213,187,.5)">' + esc(detail) + '</span></div>';
+
+  const out = [];
+  const base = (State.ollamaUrl || 'http://localhost:11434').replace(/\/+$/, '');
+  try {
+    const res = await Net.fetch(base + '/api/tags', {}, { timeout: 10000 });
+    const via = Net.last;
+    if (res.ok) {
+      const data = await res.json();
+      out.push(say('Ollama', true, ((data.models || []).length) + ' model(s) at ' + base, via));
+    } else {
+      out.push(say('Ollama', false, 'HTTP ' + res.status + ' from ' + base, via));
+    }
+  } catch (e) { out.push(say('Ollama', false, e.message, '')); }
+
+  for (const k of VAULT_ENGINES) {
+    if (!hasKey(k)) continue;
+    const r = await probeKey(k, State.keys[k]);
+    out.push(say(ENGINES[k].label, r.state === 'valid', r.detail, r.state === 'valid' ? Net.last : ''));
+  }
+  if (out.length === 1) out.push('<div style="color:rgba(230,213,187,.42)">No hosted keys saved, so there was nothing else to try.</div>');
+  return out;
+}
+
+/* ==========================================================================
    MODAL — Engines and keys
    ========================================================================== */
 function openEngines() {
@@ -2514,9 +3404,21 @@ function openEngines() {
   const draw = () => {
     m.body.innerHTML =
       '<div class="note">Local engines need no key and no account. Hosted engines call the provider straight from this page, so your key stays in this browser\u2019s storage and is never sent anywhere else — but anyone with access to this browser profile can read it.</div>' +
+      wireBar() +
       vaultBar() +
       ENGINE_ORDER.map(k => engineBlock(k)).join('');
     wire();
+  };
+  /* Where the requests are getting out, said in one line, with the sheet that
+     explains it a click away. Framed pages get it first because it is usually
+     the reason nothing works. */
+  const wireBar = () => {
+    return '<div class="vaultbar">' +
+      '<span class="eyebrow" style="letter-spacing:.18em">Connection</span>' +
+      '<span class="grow"><span class="dot ' + wireDot() + '" style="display:inline-block;margin-right:7px"></span>' +
+        esc(wireStatusLine()) + '</span>' +
+      '<button class="btn sm" data-openwire>Connection</button>' +
+    '</div>';
   };
   const vaultBar = () => {
     const shared = Vault.summary();
@@ -2561,7 +3463,7 @@ function openEngines() {
         ? '<div class="field" style="margin-bottom:8px"><label>Ollama address</label>' +
           '<input type="text" data-ourl value="' + esc(State.ollamaUrl) + '" placeholder="http://localhost:11434">' +
           '<div class="hint">Ollama refuses requests from other pages unless you allow this origin. Start it with <code>OLLAMA_ORIGINS=* ollama serve</code>, or set that variable in the Ollama app settings.</div>' +
-          (crossesIntoLocalNetwork(State.ollamaUrl)
+          ((crossesIntoLocalNetwork(State.ollamaUrl) || (Frame.embedded && !wireHelped()))
             ? '<div class="note warn" style="margin:9px 0 0">' + localFetchAdvice(State.ollamaUrl) + '</div>'
             : '') +
           '</div>'
@@ -2583,6 +3485,7 @@ function openEngines() {
     '</div>';
   };
   const wire = () => {
+    m.body.querySelectorAll('[data-openwire]').forEach(b => b.onclick = () => openConnection());
     m.body.querySelectorAll('[data-reveal]').forEach(b => b.onclick = () => {
       const i = b.parentElement.querySelector('input');
       const show = i.type === 'password';
@@ -3601,6 +4504,14 @@ function dressIcons() {
 }
 
 function boot() {
+  /* Opened at #ai-relay this file is not the chamber at all, it is the errand
+     boy for a chamber running in a frame somewhere else. Nothing below applies. */
+  if (Relay.wanted()) { Relay.start(); return; }
+
+  /* Ask the embedding page, once and quietly, whether it carries the bridge.
+     Finding it changes nothing until the user allows it in Connection. */
+  if (Frame.embedded) Link.findHost().catch(() => {});
+
   dressIcons();
   migrate();
   Voice.init();
@@ -3623,7 +4534,13 @@ function boot() {
   // Warm the local model lists quietly, so the first seat picker is populated.
   fetchModels('ollama', false).then(l => {
     if (l.length) markEnginesReady();
-  }).catch(() => {});
+  }).catch(() => {
+    /* In a frame this is the expected first failure, and saying nothing would
+       leave the user staring at an empty model list with no idea why. */
+    if (Frame.embedded && !wireHelped()) {
+      setTimeout(() => toast('Ollama could not be reached from inside this frame. Open Engines \u2192 Connection to start the relay window.', 'bad'), 900);
+    }
+  });
   // Hosted engines wait for the key check, so a dead key never seeds a model list.
   startupKeyCheck()
     .catch(e => console.warn('key check', e))
